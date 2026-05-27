@@ -1,0 +1,32 @@
+# Environment files — never commit these
+backend/.env
+backend/.env.docker
+*.env
+
+# Python
+__pycache__/
+*.pyc
+*.pyo
+.venv/
+venv/
+*.egg-info/
+
+# Node
+frontend/node_modules/
+frontend/dist/
+
+# Uploads and logs
+backend/uploads/
+backend/logs/
+
+# Mac
+.DS_Store
+
+# Docker volumes
+postgres_data/
+redis_data/
+milvus_data/
+
+# IDE
+.vscode/
+.idea/
