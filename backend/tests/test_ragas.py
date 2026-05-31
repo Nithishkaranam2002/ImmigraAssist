@@ -9,15 +9,15 @@ import os
 import sys
 import httpx
 from datetime import datetime
-from dotenv import load_dotenv
 
 sys.path.insert(0, os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
 
-load_dotenv(".env")
+os.environ["LANGSMITH_TRACING"] = "true"
+os.environ["LANGSMITH_API_KEY"] = "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"
+os.environ["LANGSMITH_PROJECT"] = "immigraassist"
 
-os.environ["LANGSMITH_TRACING"] = os.getenv("LANGSMITH_TRACING", "true")
-os.environ["LANGSMITH_API_KEY"] = os.getenv("LANGSMITH_API_KEY", "")
-os.environ["LANGSMITH_PROJECT"] = os.getenv("LANGSMITH_PROJECT", "immigraassist")
+from dotenv import load_dotenv
+load_dotenv(".env")
 
 BASE_URL = "http://localhost:8000"
 EMAIL = "nithish@immigraassist.com"
