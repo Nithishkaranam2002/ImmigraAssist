@@ -1,0 +1,82 @@
+[
+  {
+    "question": "What are the requirements for H4 EAD eligibility?",
+    "ground_truth": "To be eligible for H4 EAD, the applicant must be in valid H-4 nonimmigrant status as a spouse of an H-1B holder. The H-1B principal must have an approved Form I-140 or have been granted H-1B status under AC21. The H-4 spouse must file Form I-765 with the appropriate fee."
+  },
+  {
+    "question": "What is AC21 portability for H1B holders?",
+    "ground_truth": "AC21 portability allows H-1B workers to change employers without affecting their immigration status if they have a pending I-485 for 180 days or more, and the new job is in the same or similar occupational classification as the original H-1B petition."
+  },
+  {
+    "question": "What documents are needed for asylum application?",
+    "ground_truth": "For asylum, applicants must file Form I-589 within one year of arrival. Required documents include identity documents, evidence of persecution, country condition reports, and personal statements explaining the fear of persecution based on race, religion, nationality, political opinion, or social group membership."
+  },
+  {
+    "question": "What is the H1B cap for FY2027?",
+    "ground_truth": "The H-1B cap for FY2027 is 65,000 visas for regular cap and an additional 20,000 for advanced degree exemption holders. The FY2027 registration period opened March 4 2026 and closed March 19 2026 with a 215 dollar registration fee."
+  },
+  {
+    "question": "What happens if an H1B petition is denied?",
+    "ground_truth": "If an H-1B petition is denied, the petitioner can file an appeal with the Administrative Appeals Office using Form I-290B within 30 days, or file a motion to reopen or reconsider. The denial notice will include specific reasons and the statutory basis for the decision."
+  },
+  {
+    "question": "What are the requirements for naturalization?",
+    "ground_truth": "For naturalization, applicants must be lawful permanent residents for at least 5 years, have continuous residence, be physically present in the US for at least 30 months, demonstrate good moral character, pass English and civics tests, and be at least 18 years old."
+  },
+  {
+    "question": "What is the process for adjustment of status?",
+    "ground_truth": "Adjustment of status allows eligible individuals to apply for lawful permanent residence without leaving the US by filing Form I-485. Applicants must have an approved immigrant petition, be admissible, and have a visa immediately available."
+  },
+  {
+    "question": "What are the grounds for inadmissibility?",
+    "ground_truth": "Grounds for inadmissibility include health-related grounds, criminal history, security concerns, public charge, prior immigration violations, unlawful presence, and misrepresentation. Some grounds can be waived by filing Form I-601."
+  },
+  {
+    "question": "What is the L1 visa requirements?",
+    "ground_truth": "The L-1 visa is for intracompany transferees who work in managerial, executive, or specialized knowledge capacities. Applicants must have worked for the company for at least one continuous year within the past three years and be transferring to a qualifying US office."
+  },
+  {
+    "question": "What is the O1 visa criteria?",
+    "ground_truth": "The O-1 visa is for individuals with extraordinary ability in sciences, arts, education, business, or athletics. Applicants must demonstrate sustained national or international acclaim through awards, publications, high salary, or critical role in distinguished organizations."
+  },
+  {
+    "question": "What defenses are available against deportation?",
+    "ground_truth": "Defenses against deportation include cancellation of removal for LPRs with 5 years residence and 7 years continuous presence, asylum and withholding of removal, adjustment of status, voluntary departure, and waivers of inadmissibility under INA 212(h) or 212(i)."
+  },
+  {
+    "question": "What is TPS and who qualifies?",
+    "ground_truth": "Temporary Protected Status is granted to nationals of designated countries experiencing ongoing armed conflict, environmental disasters, or extraordinary conditions. TPS provides protection from deportation and work authorization but does not lead to permanent residence directly."
+  },
+  {
+    "question": "What is the EB1 immigrant visa category?",
+    "ground_truth": "EB-1 is a first preference employment-based immigrant visa for persons of extraordinary ability, outstanding professors and researchers, and multinational managers or executives. EB-1A does not require a job offer while EB-1B and EB-1C do."
+  },
+  {
+    "question": "What is the national interest waiver EB2?",
+    "ground_truth": "The EB-2 National Interest Waiver allows foreign nationals with advanced degrees or exceptional ability to self-petition without a job offer if they can demonstrate their work is in the national interest of the United States under the three-prong Dhanasar framework."
+  },
+  {
+    "question": "What is the I-94 and why is it important?",
+    "ground_truth": "Form I-94 is the arrival and departure record that documents a foreign national's authorized period of stay in the United States. It is used to verify immigration status and is critical for employment authorization, benefit applications, and determining authorized stay duration."
+  },
+  {
+    "question": "What is premium processing for H1B?",
+    "ground_truth": "Premium processing is an optional service that guarantees USCIS will process a petition within 15 business days for an additional fee. If USCIS does not act within 15 days, the premium processing fee is refunded. It is available for H-1B, L-1, O-1 and other petition types."
+  },
+  {
+    "question": "What is DACA and current status?",
+    "ground_truth": "DACA or Deferred Action for Childhood Arrivals provides temporary protection from deportation and work authorization for individuals brought to the US as children. DACA recipients must renew every two years and meet educational or military service requirements."
+  },
+  {
+    "question": "What is the F1 student visa OPT program?",
+    "ground_truth": "Optional Practical Training allows F-1 students to work in jobs related to their field of study for up to 12 months. STEM OPT extension allows an additional 24 months for qualifying STEM degree holders bringing total OPT to 36 months."
+  },
+  {
+    "question": "What is the public charge rule for immigration?",
+    "ground_truth": "The public charge rule allows USCIS to deny green cards to applicants likely to become primarily dependent on government assistance. Officers consider age, health, family status, assets, resources, financial status, and education when making public charge determinations."
+  },
+  {
+    "question": "What is the difference between asylum and refugee status?",
+    "ground_truth": "Asylum is granted to people already in the US or at a port of entry who fear persecution, while refugee status is granted to people outside the US. Both require showing persecution based on race, religion, nationality, political opinion, or social group membership."
+  }
+]

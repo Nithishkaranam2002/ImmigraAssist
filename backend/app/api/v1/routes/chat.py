@@ -23,6 +23,8 @@ from app.llm.gpt_client import GPTClient
 from app.llm.response_parser import ResponseParser
 from app.scrapers.courtlistener_scraper import CourtListenerScraper
 from app.utils.logger import logger
+from langsmith import traceable
+from langsmith.run_helpers import traceable as ls_traceable
 
 router = APIRouter(prefix="/chat", tags=["chat"])
 
@@ -75,7 +77,29 @@ async def query(
     db: AsyncSession = Depends(get_db),
     current_user: User = Depends(get_current_user),
 ):
+    print("LANGSMITH DEBUG: query function called")  # debug
+    # Direct LangSmith trace test
+    try:
+        import os
+        from langsmith import Client as LSClient
+        api_key = os.getenv("LANGSMITH_API_KEY", "")
+        if not api_key:
+            return {"error": "LangSmith API key not configured"}
+        ls = LSClient(api_key=api_key)
+        run_id = ls.create_run(
+            name="immigraassist-query",
+            run_type="chain",
+            project_name="immigraassist",
+            inputs={"query": body.query},
+        )
+        logger.info(f"LangSmith run created: {run_id}")
+    except Exception as e:
+        logger.error(f"LangSmith error: {e}")
     start_time = time.time()
+    # LangSmith trace
+    from langsmith import trace
+    with trace(name='immigraassist-query', run_type='chain', project_name='immigraassist', inputs={'query': body.query, 'user': current_user.email}):
+        pass
     logger.info(
         f"Query from user {current_user.email}: "
         f"'{body.query[:80]}...'"

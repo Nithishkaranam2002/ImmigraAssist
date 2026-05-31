@@ -6,6 +6,7 @@ from app.db.milvus import get_laws_collection, get_cases_collection
 from app.retrieval.metadata_filter import FilterContext
 from app.config import settings
 from app.utils.logger import logger
+from langsmith import traceable
 from langchain_openai import OpenAIEmbeddings
 
 

@@ -2,8 +2,11 @@ import time
 from dataclasses import dataclass
 from openai import AsyncOpenAI
 from openai import RateLimitError, APITimeoutError, APIConnectionError
+from langchain_openai import ChatOpenAI
+from langchain_core.messages import HumanMessage, SystemMessage
 from app.llm.prompt_builder import BuiltPrompt
 from app.config import settings
+from langsmith import traceable, wrappers
 from app.utils.logger import logger
 
 
@@ -33,8 +36,14 @@ class GPTClient:
     RETRY_DELAY_SECONDS = 2
 
     def __init__(self):
-        self.client = AsyncOpenAI(
+        self.client = wrappers.wrap_openai(
+            AsyncOpenAI(api_key=settings.OPENAI_API_KEY)
+        )
+        self.lc_client = ChatOpenAI(
+            model=settings.OPENAI_MODEL,
             api_key=settings.OPENAI_API_KEY,
+            max_tokens=settings.OPENAI_MAX_TOKENS,
+            temperature=settings.OPENAI_TEMPERATURE,
         )
         logger.info(f"GPT client initialized — model: {settings.OPENAI_MODEL}")
 
@@ -85,51 +94,37 @@ class GPTClient:
             f"Please try again later."
         )
 
+    @traceable(name="immigraassist-gpt4o", run_type="llm", project_name="immigraassist")
     async def _call_api(self, prompt: BuiltPrompt) -> GPTResponse:
-        """Single API call — called by complete() with retry logic."""
+        """Single API call via LangChain for LangSmith tracing."""
         start_time = time.time()
-
-        logger.info(
-            f"Calling GPT — model: {settings.OPENAI_MODEL}, "
-            f"max_tokens: {settings.OPENAI_MAX_TOKENS}"
-        )
-
-        response = await self.client.chat.completions.create(
-            model=settings.OPENAI_MODEL,
-            messages=[
-                {
-                    "role": "system",
-                    "content": prompt.system_message,
-                },
-                {
-                    "role": "user",
-                    "content": prompt.user_message,
-                },
-            ],
-            max_tokens=settings.OPENAI_MAX_TOKENS,
-            temperature=settings.OPENAI_TEMPERATURE,
-        )
-
+        logger.info(f"Calling GPT - model: {settings.OPENAI_MODEL}")
+        messages = [
+            SystemMessage(content=prompt.system_message),
+            HumanMessage(content=prompt.user_message),
+        ]
+        lc_response = await self.lc_client.ainvoke(messages)
+        content = lc_response.content
+        usage = lc_response.usage_metadata
         end_time = time.time()
         response_time_ms = int((end_time - start_time) * 1000)
-
-        content = response.choices[0].message.content or ""
-        usage = response.usage
-
-        logger.info(
-            f"GPT response received — "
-            f"{usage.total_tokens} tokens, "
-            f"{response_time_ms}ms"
-        )
-
-        return GPTResponse(
+        total_tokens = usage.get("total_tokens", 0) if usage else 0
+        logger.info(f"GPT response received - {total_tokens} tokens, {response_time_ms}ms")
+        result = GPTResponse(
             content=content,
-            prompt_tokens=usage.prompt_tokens,
-            completion_tokens=usage.completion_tokens,
-            total_tokens=usage.total_tokens,
-            model=response.model,
+            prompt_tokens=usage.get("input_tokens", 0) if usage else 0,
+            completion_tokens=usage.get("output_tokens", 0) if usage else 0,
+            total_tokens=total_tokens,
+            model=settings.OPENAI_MODEL,
             response_time_ms=response_time_ms,
         )
+        # flush langsmith traces
+        try:
+            from langsmith import Client
+            Client().flush()
+        except Exception:
+            pass
+        return result
 
     async def complete_streaming(self, prompt: BuiltPrompt):
         """

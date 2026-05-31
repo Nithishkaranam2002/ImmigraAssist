@@ -76,6 +76,11 @@ class Settings(BaseSettings):
     MAX_UPLOAD_SIZE_MB: int = 50
     UPLOAD_DIR: str = "uploads"
 
+    # ─── LangSmith ────────────────────────────────────
+    LANGCHAIN_API_KEY: str = ""
+    LANGCHAIN_TRACING_V2: str = "false"
+    LANGCHAIN_PROJECT: str = "immigraassist"
+
     class Config:
         env_file = ".env"
         case_sensitive = True

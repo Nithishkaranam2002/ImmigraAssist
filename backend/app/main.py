@@ -1,3 +1,13 @@
+import os
+from dotenv import load_dotenv
+
+load_dotenv()
+
+# ── LangSmith tracing — must be set BEFORE any other imports ───────────
+os.environ["LANGSMITH_TRACING"] = os.getenv("LANGSMITH_TRACING", "true")
+os.environ["LANGSMITH_API_KEY"] = os.getenv("LANGSMITH_API_KEY", "")
+os.environ["LANGSMITH_PROJECT"] = os.getenv("LANGSMITH_PROJECT", "immigraassist")
+
 from fastapi import FastAPI
 from fastapi.middleware.cors import CORSMiddleware
 from contextlib import asynccontextmanager
@@ -10,7 +20,6 @@ from app.db.seeder import seed_super_admin
 from app.api.v1.routes import auth, chat, documents, users, feedback, admin, invites, cases
 from app.config import settings
 from app.utils.logger import logger
-import os
 
 
 @asynccontextmanager
@@ -34,55 +43,36 @@ async def lifespan(app: FastAPI):
     logger.info("Connecting to Redis...")
     await get_redis()
 
-    logger.info("All systems ready. ImmigraAssist is running.")
-
-    yield  # app is running
+    logger.info(f"All systems ready. {settings.APP_NAME} is running.")
+    yield
 
     # ── Shutdown ───────────────────────────────────────────────────────
-    logger.info("Shutting down ImmigraAssist...")
+    logger.info("Shutting down...")
     await close_redis()
-    logger.info("Shutdown complete")
 
 
 app = FastAPI(
     title=settings.APP_NAME,
     version=settings.APP_VERSION,
-    description="AI-powered immigration legal research assistant",
     lifespan=lifespan,
 )
 
-# ── CORS ───────────────────────────────────────────────────────────────────
 app.add_middleware(
     CORSMiddleware,
-    allow_origins=[
-        "http://localhost:5173",
-        "http://localhost:5174",
-        "http://localhost:3000",
-    ],
+    allow_origins=["*"],
     allow_credentials=True,
     allow_methods=["*"],
     allow_headers=["*"],
 )
 
-# ── Routes ─────────────────────────────────────────────────────────────────
-app.include_router(auth.router, prefix="/api/v1")
-app.include_router(chat.router, prefix="/api/v1")
-app.include_router(documents.router, prefix="/api/v1")
-app.include_router(users.router, prefix="/api/v1")
-app.include_router(feedback.router, prefix="/api/v1")
-app.include_router(admin.router, prefix="/api/v1")
-app.include_router(invites.router, prefix="/api/v1")
-app.include_router(cases.router, prefix="/api/v1")
-
-
-@app.get("/")
-async def root():
-    return {
-        "app": settings.APP_NAME,
-        "version": settings.APP_VERSION,
-        "tagline": "From Policies to Precedents, Instantly.",
-        "status": "running",
-    }
+app.include_router(auth.router, prefix="/api/v1", tags=["auth"])
+app.include_router(chat.router, prefix="/api/v1", tags=["chat"])
+app.include_router(documents.router, prefix="/api/v1", tags=["documents"])
+app.include_router(users.router, prefix="/api/v1", tags=["users"])
+app.include_router(feedback.router, prefix="/api/v1", tags=["feedback"])
+app.include_router(admin.router, prefix="/api/v1", tags=["admin"])
+app.include_router(invites.router, prefix="/api/v1", tags=["invites"])
+app.include_router(cases.router, prefix="/api/v1", tags=["cases"])
 
 
 @app.get("/health")
