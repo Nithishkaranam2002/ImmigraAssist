@@ -82,10 +82,7 @@ async def query(
     try:
         import os
         from langsmith import Client as LSClient
-        api_key = os.getenv("LANGSMITH_API_KEY", "")
-        if not api_key:
-            return {"error": "LangSmith API key not configured"}
-        ls = LSClient(api_key=api_key)
+        ls = LSClient(api_key=os.getenv("LANGSMITH_API_KEY", ""))
         run_id = ls.create_run(
             name="immigraassist-query",
             run_type="chain",
