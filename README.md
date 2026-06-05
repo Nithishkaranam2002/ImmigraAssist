@@ -2,6 +2,7 @@
 
 > AI-powered immigration legal research assistant for law firms — from policies to precedents, instantly.
 
+[![Live Demo](https://img.shields.io/badge/Live_Demo-157.230.51.229-blue?style=for-the-badge)](http://157.230.51.229)
 [![Python](https://img.shields.io/badge/Python-3.12-blue)](https://python.org)
 [![FastAPI](https://img.shields.io/badge/FastAPI-0.115-green)](https://fastapi.tiangolo.com)
 [![React](https://img.shields.io/badge/React-18-61DAFB)](https://react.dev)
@@ -10,11 +11,65 @@
 [![LangSmith](https://img.shields.io/badge/LangSmith-Traced-orange)](https://smith.langchain.com)
 [![License](https://img.shields.io/badge/License-MIT-yellow)](LICENSE)
 
+**[Live Demo](http://157.230.51.229)** · **[GitHub](https://github.com/Nithishkaranam2002/ImmigraAssist)** · **[Report Bug](https://github.com/Nithishkaranam2002/ImmigraAssist/issues)**
+
+---
+
+## Table of Contents
+
+- [Live Demo](#live-demo)
+- [Screenshots](#screenshots)
+- [What is ImmigraAssist?](#what-is-immigraassist)
+- [Evaluation Results](#evaluation-results)
+- [Architecture](#architecture)
+- [Knowledge Base](#knowledge-base)
+- [Features](#features)
+- [Quick Start](#quick-start)
+- [Running RAGAS Evaluation](#running-ragas-evaluation)
+- [API Reference](#api-reference)
+- [User Roles](#user-roles)
+- [Project Structure](#project-structure)
+- [Environment Variables](#environment-variables)
+- [Development](#development)
+- [Author](#author)
+- [License & Disclaimer](#license)
+
+---
+
+## Live Demo
+
+**URL:** [http://157.230.51.229](http://157.230.51.229)
+
+Login credentials for demo:
+
+| Field | Value |
+|---|---|
+| Email | `nithish@immigraassist.com` |
+| Password | `test1234` |
+
+> **Tip:** After login, ask a question like *"What are the requirements for H4 EAD eligibility?"* — answers typically take 15–30 seconds while the system searches policies, cases, and CourtListener.
+
+---
+
+## Screenshots
+
+### Chat — AI legal research with case references
+
+![ImmigraAssist chat with H4 EAD answer and CourtListener case references](docs/chat-response.png)
+
+### Chat home — suggested immigration law questions
+
+![ImmigraAssist chat home screen](docs/chat-home.png)
+
+### Login
+
+![ImmigraAssist login page](docs/login.png)
+
 ---
 
 ## What is ImmigraAssist?
 
-ImmigraAssist is a production-grade RAG (Retrieval-Augmented Generation) system built for immigration law firms. It reduces legal research time from hours to seconds by combining:
+ImmigraAssist is a production-grade **RAG (Retrieval-Augmented Generation)** system built for immigration law firms. It reduces legal research time from hours to seconds by combining:
 
 - **Real USCIS policy data** — scraped live from the USCIS Policy Manual using Playwright
 - **BIA/AAO case precedents** — 244 Board of Immigration Appeals decisions indexed in Milvus
@@ -62,9 +117,7 @@ FastAPI Backend
     └── LangSmith (traces every LLM call)
 ```
 
----
-
-## Tech Stack
+### Tech Stack
 
 | Layer | Technology |
 |---|---|
@@ -115,6 +168,7 @@ FastAPI Backend
 - **Legal Clauses section** — exact USCIS policy chapter citations
 - **Related Cases section** — clickable BIA/AAO and federal court decisions
 - **Response time display** — ms timing for each query
+- **Helpful/unhelpful feedback** — thumbs up/down per response
 
 ### Security & Access
 - **Role-based access control** — `super_admin`, `admin`, `attorney`, `junior_associate`
@@ -132,6 +186,7 @@ FastAPI Backend
 ## Quick Start
 
 ### Prerequisites
+
 - Docker Desktop
 - OpenAI API key
 
@@ -188,7 +243,7 @@ curl -X POST "http://localhost/api/v1/admin/scrape/trigger?scrape_policy=true&sc
   -H "Authorization: Bearer TOKEN"
 ```
 
-Takes 15-20 minutes on first run to ingest ~330 documents.
+Takes 15–20 minutes on first run to ingest ~330 documents and 6,500+ vectors.
 
 ---
 
@@ -200,6 +255,7 @@ python tests/test_ragas.py
 ```
 
 Output:
+
 ```
 IMMIGRAASSIST RAGAS EVALUATION RESULTS
 ========================================
@@ -208,6 +264,45 @@ SCORES:
   Answer Relevancy:  0.840 / 1.000
   Overall Average:   0.840 / 1.000
   Grade: EXCELLENT
+```
+
+---
+
+## API Reference
+
+```
+POST /api/v1/auth/login           # Login
+POST /api/v1/auth/register        # Register
+POST /api/v1/chat/query           # Ask a question
+GET  /api/v1/cases/search         # Search CourtListener cases
+POST /api/v1/admin/scrape/trigger # Trigger data scrape
+GET  /api/v1/users/               # List all users
+POST /api/v1/invites/             # Create invite link
+GET  /health                      # Health check
+```
+
+---
+
+## User Roles
+
+| Role | Chat | Documents | Users | Dashboard | Audit Logs |
+|---|---|---|---|---|---|
+| `junior_associate` | ✅ | ❌ | ❌ | ❌ | ❌ |
+| `attorney` | ✅ | ✅ | ❌ | ❌ | ❌ |
+| `admin` | ✅ | ✅ | ✅ | ✅ | ✅ |
+| `super_admin` | ✅ | ✅ | ✅ | ✅ | ✅ |
+
+---
+
+## Sample Questions
+
+```
+What are the requirements for H4 EAD eligibility?
+Explain AC21 portability for H1B holders
+What documents are needed for asylum application?
+What happens if an H1B petition is denied?
+What defenses are available against deportation for long-term residents?
+What is the latest update on H1B registration for FY 2027?
 ```
 
 ---
@@ -239,34 +334,10 @@ ImmigraAssist/
 │   │   └── store/              # Zustand state management
 │   ├── Dockerfile
 │   └── nginx.conf
+├── docs/                       # Screenshots for README
+├── scripts/                    # Utility scripts
 └── docker-compose.yml
 ```
-
----
-
-## API Reference
-
-```
-POST /api/v1/auth/login           # Login
-POST /api/v1/auth/register        # Register
-POST /api/v1/chat/query           # Ask a question
-GET  /api/v1/cases/search         # Search CourtListener cases
-POST /api/v1/admin/scrape/trigger # Trigger data scrape
-GET  /api/v1/users/               # List all users
-POST /api/v1/invites/             # Create invite link
-GET  /health                      # Health check
-```
-
----
-
-## User Roles
-
-| Role | Chat | Documents | Users | Dashboard | Audit Logs |
-|---|---|---|---|---|---|
-| `junior_associate` | ✅ | ❌ | ❌ | ❌ | ❌ |
-| `attorney` | ✅ | ✅ | ❌ | ❌ | ❌ |
-| `admin` | ✅ | ✅ | ✅ | ✅ | ✅ |
-| `super_admin` | ✅ | ✅ | ✅ | ✅ | ✅ |
 
 ---
 
@@ -285,7 +356,46 @@ GET  /health                      # Health check
 | `ADMIN_PASSWORD` | Super admin password (required) |
 | `SECRET_KEY` | JWT secret key (required) |
 
-See `backend/.env.example` for full list.
+See `backend/.env.example` for the full list.
+
+---
+
+## Development
+
+### Run locally (without Docker)
+
+```bash
+# Backend
+cd backend
+python -m venv .venv
+source .venv/bin/activate
+pip install -r requirements.txt
+uvicorn app.main:app --reload --port 8000
+
+# Frontend
+cd frontend
+npm install
+npm run dev
+
+# Celery worker
+cd backend
+celery -A celery_worker worker --loglevel=info
+```
+
+### Run with Docker
+
+```bash
+docker compose up -d           # Start all services
+docker compose logs -f backend # View backend logs
+docker compose ps              # Check service health
+docker compose down            # Stop all services
+```
+
+### Regenerate README screenshots
+
+```bash
+node scripts/capture-screenshots.mjs
+```
 
 ---
 
@@ -299,18 +409,20 @@ See `backend/.env.example` for full list.
 - [GLiNER](https://github.com/urchade/GLiNER) — generalist NER model for PII detection
 - [CourtListener](https://courtlistener.com) — free law API with 4M+ opinions
 - [Playwright](https://playwright.dev) — browser automation for JS-rendered scraping
-- [Celery](https://celeryq.dev) — distributed task queue
+- [Celery](https://docs.celeryq.dev) — distributed task queue
 
 ---
 
 ## Author
 
 **Nithish Karanam**
+
 - MS Artificial Intelligence, University of North Texas (GPA: 3.5)
 - NVIDIA Certified — NCP-AAI and Generative AI LLMs Associate
 - [GitHub](https://github.com/Nithishkaranam2002)
 - [LinkedIn](https://linkedin.com/in/nithishkaranam)
 - [Portfolio](https://nithishkaranam.lovable.app)
+- [ImmigraAssist Repo](https://github.com/Nithishkaranam2002/ImmigraAssist)
 
 ---
 
