@@ -9,7 +9,7 @@ from sqlalchemy import select
 from pydantic import BaseModel, Field
 from typing import Optional
 from uuid import UUID
-from app.db.postgres import get_db
+from app.db.postgres import session_scope
 from app.db.models.user import User
 from app.db.models.audit_log import AuditLog
 from app.db.models.chat_query_meta import ChatQueryMeta
@@ -170,7 +170,6 @@ async def _save_query_meta(
 @router.post("/query", response_model=QueryResponse)
 async def query(
     body: QueryRequest,
-    db: AsyncSession = Depends(get_db),
     current_user: User = Depends(get_current_user),
 ):
     start_time = time.time()
@@ -198,7 +197,6 @@ async def query(
     if body.stream:
         return StreamingResponse(
             _stream_pipeline(
-                db=db,
                 current_user=current_user,
                 body=body,
                 clean_query=clean_query,
@@ -210,7 +208,6 @@ async def query(
         )
 
     result = await _run_pipeline(
-        db=db,
         current_user=current_user,
         raw_query=body.query,
         clean_query=clean_query,
@@ -228,7 +225,6 @@ async def query(
 @router.post("/doc-query", response_model=QueryResponse)
 async def doc_query(
     body: DocQueryRequest,
-    db: AsyncSession = Depends(get_db),
     current_user: User = Depends(get_current_user),
 ):
     """Ask questions about an uploaded client document (petition draft, etc.)."""
@@ -246,7 +242,6 @@ async def doc_query(
     clean_query = pii_result.redacted_text
 
     result = await _run_pipeline(
-        db=db,
         current_user=current_user,
         raw_query=body.query,
         clean_query=clean_query,
@@ -261,7 +256,6 @@ async def doc_query(
 
 async def _run_pipeline(
     *,
-    db: AsyncSession,
     current_user: User,
     raw_query: str,
     clean_query: str,
@@ -271,65 +265,64 @@ async def _run_pipeline(
     start_time: float,
     extra_context: Optional[str],
 ) -> dict:
-    filter_context = await metadata_filter.build_filter_context(db=db, query=clean_query)
+    async with session_scope() as db:
+        filter_context = await metadata_filter.build_filter_context(db=db, query=clean_query)
 
-    session_context = ""
-    if session_id:
-        session_context = await _get_session_context(db, session_id, current_user.id)
+        session_context = ""
+        if session_id:
+            session_context = await _get_session_context(db, session_id, current_user.id)
 
-    law_chunks, case_chunks, court_cases = await _retrieve_all(
-        db=db,
-        query=clean_query,
-        filter_context=filter_context,
-        visa_type=filter_context.visa_type,
-    )
-
-    law_chunks, case_chunks = await asyncio.gather(
-        reranker.rerank(query=clean_query, chunks=law_chunks),
-        reranker.rerank(query=clean_query, chunks=case_chunks),
-    )
-
-    case_chunks = await clustering.cluster_and_select(chunks=case_chunks)
-
-    context = await context_builder.build(
-        db=db,
-        law_chunks=law_chunks,
-        case_chunks=case_chunks,
-        court_cases=court_cases,
-    )
-
-    if extra_context:
-        context.context_text = extra_context + "\n\n" + context.context_text
-
-    if session_context:
-        context.context_text = (
-            f"## PREVIOUS CONVERSATION\n{session_context}\n\n" + context.context_text
+        law_chunks, case_chunks, court_cases = await _retrieve_all(
+            query=clean_query,
+            filter_context=filter_context,
+            visa_type=filter_context.visa_type,
         )
 
-    prompt = prompt_builder.build(
-        query=clean_query,
-        context=context,
-        visa_type=filter_context.visa_type,
-        query_mode=query_mode,
-    )
+        law_chunks = await reranker.rerank(query=clean_query, chunks=law_chunks)
+        case_chunks = await reranker.rerank(query=clean_query, chunks=case_chunks)
+        case_chunks = await clustering.cluster_and_select(chunks=case_chunks)
+
+        context = await context_builder.build(
+            db=db,
+            law_chunks=law_chunks,
+            case_chunks=case_chunks,
+            court_cases=court_cases,
+        )
+
+        if extra_context:
+            context.context_text = extra_context + "\n\n" + context.context_text
+
+        if session_context:
+            context.context_text = (
+                f"## PREVIOUS CONVERSATION\n{session_context}\n\n" + context.context_text
+            )
+
+        prompt = prompt_builder.build(
+            query=clean_query,
+            context=context,
+            visa_type=filter_context.visa_type,
+            query_mode=query_mode,
+        )
 
     gpt_response = await gpt_client.complete(prompt)
-    return await _finalize_response(
-        db=db,
-        current_user=current_user,
-        raw_query=raw_query,
-        context=context,
-        gpt_response=gpt_response,
-        law_chunks=law_chunks,
-        case_chunks=case_chunks,
-        court_cases=court_cases,
-        filter_context=filter_context,
-        matter_id=matter_id,
-        session_id=session_id,
-        query_mode=query_mode,
-        start_time=start_time,
-        from_cache=False,
-    )
+
+    async with session_scope() as db:
+        return await _finalize_response(
+            db=db,
+            current_user=current_user,
+            raw_query=raw_query,
+            context=context,
+            gpt_response=gpt_response,
+            law_chunks=law_chunks,
+            case_chunks=case_chunks,
+            court_cases=court_cases,
+            filter_context=filter_context,
+            matter_id=matter_id,
+            session_id=session_id,
+            query_mode=query_mode,
+            start_time=start_time,
+            from_cache=False,
+        )
 
 
 async def _finalize_response(
@@ -391,7 +384,6 @@ async def _finalize_response(
         from_cache=from_cache,
         related_forms=form_list,
     )
-    await db.commit()
     await db.refresh(audit_log)
 
     court_resp = _court_cases_response(court_cases)
@@ -418,43 +410,41 @@ async def _finalize_response(
 
 
 async def _stream_pipeline(
-    db, current_user, body, clean_query, session_id, query_mode, start_time
+    current_user, body, clean_query, session_id, query_mode, start_time
 ):
     try:
-        filter_context = await metadata_filter.build_filter_context(db=db, query=clean_query)
-        session_context = await _get_session_context(db, session_id, current_user.id)
+        async with session_scope() as db:
+            filter_context = await metadata_filter.build_filter_context(db=db, query=clean_query)
+            session_context = await _get_session_context(db, session_id, current_user.id)
 
-        law_chunks, case_chunks, court_cases = await _retrieve_all(
-            db=db,
-            query=clean_query,
-            filter_context=filter_context,
-            visa_type=filter_context.visa_type,
-        )
-
-        law_chunks, case_chunks = await asyncio.gather(
-            reranker.rerank(query=clean_query, chunks=law_chunks),
-            reranker.rerank(query=clean_query, chunks=case_chunks),
-        )
-        case_chunks = await clustering.cluster_and_select(chunks=case_chunks)
-
-        context = await context_builder.build(
-            db=db,
-            law_chunks=law_chunks,
-            case_chunks=case_chunks,
-            court_cases=court_cases,
-        )
-
-        if session_context:
-            context.context_text = (
-                f"## PREVIOUS CONVERSATION\n{session_context}\n\n" + context.context_text
+            law_chunks, case_chunks, court_cases = await _retrieve_all(
+                query=clean_query,
+                filter_context=filter_context,
+                visa_type=filter_context.visa_type,
             )
 
-        prompt = prompt_builder.build(
-            query=clean_query,
-            context=context,
-            visa_type=filter_context.visa_type,
-            query_mode=query_mode,
-        )
+            law_chunks = await reranker.rerank(query=clean_query, chunks=law_chunks)
+            case_chunks = await reranker.rerank(query=clean_query, chunks=case_chunks)
+            case_chunks = await clustering.cluster_and_select(chunks=case_chunks)
+
+            context = await context_builder.build(
+                db=db,
+                law_chunks=law_chunks,
+                case_chunks=case_chunks,
+                court_cases=court_cases,
+            )
+
+            if session_context:
+                context.context_text = (
+                    f"## PREVIOUS CONVERSATION\n{session_context}\n\n" + context.context_text
+                )
+
+            prompt = prompt_builder.build(
+                query=clean_query,
+                context=context,
+                visa_type=filter_context.visa_type,
+                query_mode=query_mode,
+            )
 
         full_content = ""
         async for chunk in gpt_client.complete_streaming(prompt):
@@ -470,22 +460,23 @@ async def _stream_pipeline(
             response_time_ms=0,
         )
 
-        result = await _finalize_response(
-            db=db,
-            current_user=current_user,
-            raw_query=body.query,
-            context=context,
-            gpt_response=gpt_response,
-            law_chunks=law_chunks,
-            case_chunks=case_chunks,
-            court_cases=court_cases,
-            filter_context=filter_context,
-            matter_id=body.matter_id,
-            session_id=session_id,
-            query_mode=query_mode,
-            start_time=start_time,
-            from_cache=False,
-        )
+        async with session_scope() as db:
+            result = await _finalize_response(
+                db=db,
+                current_user=current_user,
+                raw_query=body.query,
+                context=context,
+                gpt_response=gpt_response,
+                law_chunks=law_chunks,
+                case_chunks=case_chunks,
+                court_cases=court_cases,
+                filter_context=filter_context,
+                matter_id=body.matter_id,
+                session_id=session_id,
+                query_mode=query_mode,
+                start_time=start_time,
+                from_cache=False,
+            )
 
         yield f"data: {json.dumps({'type': 'done', **result})}\n\n"
         yield "data: [DONE]\n\n"
@@ -495,11 +486,11 @@ async def _stream_pipeline(
         yield f"data: {json.dumps({'type': 'error', 'message': str(e)})}\n\n"
 
 
-async def _retrieve_all(db, query, filter_context, visa_type) -> tuple:
+async def _retrieve_all(query, filter_context, visa_type) -> tuple:
     scraper = CourtListenerScraper()
     try:
         milvus_task = hybrid_retriever.retrieve(
-            db=db, query=query, filter_context=filter_context
+            query=query, filter_context=filter_context
         )
         courtlistener_task = scraper.search(
             query=query,
