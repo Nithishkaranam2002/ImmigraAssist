@@ -18,7 +18,8 @@ import {
 import { Users, Loader2, ShieldCheck, UserPlus, Copy, Check } from "lucide-react"
 import { toast } from "@/hooks/useToast"
 import api from "@/services/api"
-import type { UserRole } from "@/types"
+import type { User, UserRole } from "@/types"
+import { getApiErrorMessage } from "@/lib/utils"
 
 const roleColors: Record<string, "default" | "secondary" | "outline"> = {
   super_admin: "default",
@@ -56,7 +57,7 @@ export function UsersPage() {
       setDeactivateTarget(null)
       toast("User deactivated", "success")
     },
-    onError: (err: any) => toast(err.response?.data?.detail || "Failed to deactivate", "error"),
+    onError: (err: unknown) => toast(getApiErrorMessage(err, "Failed to deactivate"), "error"),
   })
 
   const roleMutation = useMutation({
@@ -65,7 +66,7 @@ export function UsersPage() {
       queryClient.invalidateQueries({ queryKey: ["users"] })
       toast("Role updated", "success")
     },
-    onError: (err: any) => toast(err.response?.data?.detail || "Failed to update role", "error"),
+    onError: (err: unknown) => toast(getApiErrorMessage(err, "Failed to update role"), "error"),
   })
 
   const handleCreateInvite = async () => {
@@ -80,8 +81,8 @@ export function UsersPage() {
       const token = new URL(rawLink).searchParams.get("token")
       setGeneratedLink(`${window.location.origin}/signup?token=${token}`)
       toast("Invite link generated", "success")
-    } catch (err: any) {
-      toast(err.response?.data?.detail || "Failed to create invite", "error")
+    } catch (err: unknown) {
+      toast(getApiErrorMessage(err, "Failed to create invite"), "error")
     } finally {
       setInviteLoading(false)
     }
@@ -94,7 +95,7 @@ export function UsersPage() {
     setTimeout(() => setCopied(false), 2000)
   }
 
-  const activeCount = users.filter((u: any) => u.is_active).length
+  const activeCount = users.filter((u) => u.is_active).length
 
   return (
     <div className="h-full overflow-y-auto p-4 sm:p-6 space-y-6">
@@ -184,7 +185,7 @@ export function UsersPage() {
             <p className="text-center text-slate-400 py-8 text-sm">No users found</p>
           ) : (
             <div className="space-y-2">
-              {users.map((user: any) => (
+              {users.map((user: User) => (
                 <div key={user.id} className="flex flex-col sm:flex-row sm:items-center gap-3 p-4 bg-slate-50 rounded-xl border border-slate-100">
                   <div className="w-10 h-10 rounded-full bg-brand-600 flex items-center justify-center text-white font-bold shrink-0">
                     {user.full_name.charAt(0).toUpperCase()}

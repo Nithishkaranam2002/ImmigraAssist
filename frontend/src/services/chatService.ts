@@ -97,8 +97,7 @@ export const chatService = {
           if (event.type === "chunk") {
             callbacks.onChunk(event.content)
           } else if (event.type === "done") {
-            const { type: _, ...response } = event
-            callbacks.onDone(response as QueryResponse)
+            callbacks.onDone(event as QueryResponse)
           } else if (event.type === "error") {
             callbacks.onError(event.message)
           }

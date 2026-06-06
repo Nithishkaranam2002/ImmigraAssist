@@ -45,7 +45,7 @@ function newSessionId(): string {
   return generateId()
 }
 
-export const useChatStore = create<ChatStore>((set, get) => ({
+export const useChatStore = create<ChatStore>((set) => ({
   messages: [],
   isLoading: false,
   sessionId: newSessionId(),

@@ -9,13 +9,20 @@ import { Badge } from "@/components/ui/badge"
 import { PageHeader } from "@/components/layout/PageHeader"
 import { Skeleton } from "@/components/ui/skeleton"
 import { toast } from "@/hooks/useToast"
+import { getApiErrorMessage } from "@/lib/utils"
 
-const statusConfig = {
+type DocStatus = "completed" | "processing" | "pending" | "failed"
+type StatusBadgeVariant = "success" | "warning" | "secondary" | "destructive"
+
+const statusConfig: Record<
+  DocStatus,
+  { icon: typeof CheckCircle; color: StatusBadgeVariant; label: string }
+> = {
   completed: { icon: CheckCircle, color: "success", label: "Completed" },
   processing: { icon: Loader2, color: "warning", label: "Processing" },
   pending: { icon: Clock, color: "secondary", label: "Pending" },
   failed: { icon: XCircle, color: "destructive", label: "Failed" },
-} as const
+}
 
 export function DocumentsPage() {
   const [dragOver, setDragOver] = useState(false)
@@ -33,15 +40,15 @@ export function DocumentsPage() {
       queryClient.invalidateQueries({ queryKey: ["documents"] })
       toast("Document uploaded — ingestion started", "success")
     },
-    onError: (err: any) => {
-      toast(err.response?.data?.detail || "Upload failed", "error")
+    onError: (err: unknown) => {
+      toast(getApiErrorMessage(err, "Upload failed"), "error")
     },
   })
 
   const scrapeMutation = useMutation({
     mutationFn: () => adminService.triggerScrape(),
     onSuccess: () => toast("Scraper pipeline triggered in background", "success"),
-    onError: (err: any) => toast(err.response?.data?.detail || "Scrape trigger failed", "error"),
+    onError: (err: unknown) => toast(getApiErrorMessage(err, "Scrape trigger failed"), "error"),
   })
 
   const handleFile = (file: File) => {
@@ -175,7 +182,7 @@ export function DocumentsPage() {
                     <Badge variant={doc.doc_type === "law" ? "default" : "secondary"}>
                       {doc.doc_type}
                     </Badge>
-                    <Badge variant={config.color as any} className="flex items-center gap-1">
+                    <Badge variant={config.color} className="flex items-center gap-1">
                       <StatusIcon className={`w-3 h-3 ${doc.status === "processing" ? "animate-spin" : ""}`} />
                       {config.label}
                     </Badge>

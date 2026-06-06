@@ -5,6 +5,7 @@ export interface User {
   role: UserRole
   is_active: boolean
   created_at: string
+  designation?: string | null
 }
 
 export type UserRole =

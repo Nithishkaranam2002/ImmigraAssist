@@ -6,6 +6,14 @@ export function cn(...inputs: ClassValue[]) {
 }
 
 /** Works on HTTP — crypto.randomUUID() requires HTTPS in Safari/Chrome */
+export function getApiErrorMessage(err: unknown, fallback: string): string {
+  if (err && typeof err === "object" && "response" in err) {
+    const detail = (err as { response?: { data?: { detail?: string } } }).response?.data?.detail
+    if (typeof detail === "string") return detail
+  }
+  return fallback
+}
+
 export function generateId(): string {
   if (typeof crypto !== "undefined" && typeof crypto.randomUUID === "function") {
     try {

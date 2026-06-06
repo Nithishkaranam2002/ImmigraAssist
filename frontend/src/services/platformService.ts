@@ -1,5 +1,4 @@
 import api from "./api"
-import type { QueryResponse } from "./chatService"
 
 export interface HistoryItem {
   id: string

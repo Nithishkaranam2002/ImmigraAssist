@@ -1,5 +1,5 @@
 import { useState, useRef, useEffect } from "react"
-import { useLocation } from "react-router-dom"
+import { useSearchParams } from "react-router-dom"
 import { useQuery } from "@tanstack/react-query"
 import {
   Send,
@@ -52,8 +52,8 @@ function cleanContent(content: string) {
 }
 
 export function ChatPage() {
-  const location = useLocation()
-  const [input, setInput] = useState("")
+  const [searchParams] = useSearchParams()
+  const [input, setInput] = useState(() => searchParams.get("q") ?? "")
   const [docText, setDocText] = useState("")
   const [showDocQA, setShowDocQA] = useState(false)
   const [feedbackSent, setFeedbackSent] = useState<Set<string>>(new Set())
@@ -83,11 +83,6 @@ export function ChatPage() {
     queryKey: ["matters"],
     queryFn: matterService.list,
   })
-
-  useEffect(() => {
-    const prefilled = (location.state as { prefilledQuery?: string })?.prefilledQuery
-    if (prefilled) setInput(prefilled)
-  }, [location.state])
 
   useEffect(() => {
     bottomRef.current?.scrollIntoView({ behavior: "smooth" })

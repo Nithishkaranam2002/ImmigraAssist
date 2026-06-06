@@ -35,7 +35,7 @@ export function ResearchVisaPage() {
   }
 
   const ask = (q: string) => {
-    navigate("/chat", { state: { prefilledQuery: q } })
+    navigate(`/chat?q=${encodeURIComponent(q)}`)
   }
 
   return (

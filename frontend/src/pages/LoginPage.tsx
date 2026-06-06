@@ -9,6 +9,7 @@ import { Input } from "@/components/ui/input"
 import { AuthLayout } from "@/components/auth/AuthLayout"
 import { authService } from "@/services/authService"
 import { useAuthStore } from "@/store/authStore"
+import { getApiErrorMessage } from "@/lib/utils"
 
 const loginSchema = z.object({
   email: z.string().email("Invalid email"),
@@ -43,8 +44,8 @@ export function LoginPage() {
         created_at: new Date().toISOString(),
       })
       navigate("/chat")
-    } catch (err: any) {
-      setError(err.response?.data?.detail || "Login failed")
+    } catch (err: unknown) {
+      setError(getApiErrorMessage(err, "Login failed"))
     } finally {
       setLoading(false)
     }

@@ -1,5 +1,6 @@
 import { useState, useEffect } from "react"
 import { useNavigate, Navigate, Link, useSearchParams } from "react-router-dom"
+import { useQuery } from "@tanstack/react-query"
 import { useForm } from "react-hook-form"
 import { zodResolver } from "@hookform/resolvers/zod"
 import { z } from "zod"
@@ -10,6 +11,7 @@ import { AuthLayout } from "@/components/auth/AuthLayout"
 import { authService } from "@/services/authService"
 import { useAuthStore } from "@/store/authStore"
 import api from "@/services/api"
+import { getApiErrorMessage } from "@/lib/utils"
 
 const signupSchema = z.object({
   full_name: z.string().min(2, "Full name must be at least 2 characters"),
@@ -34,8 +36,6 @@ interface InviteInfo {
 export function SignupPage() {
   const [error, setError] = useState("")
   const [loading, setLoading] = useState(false)
-  const [inviteInfo, setInviteInfo] = useState<InviteInfo | null>(null)
-  const [inviteLoading, setInviteLoading] = useState(false)
   const [searchParams] = useSearchParams()
   const inviteToken = searchParams.get("token")
   const navigate = useNavigate()
@@ -45,19 +45,25 @@ export function SignupPage() {
     resolver: zodResolver(signupSchema),
   })
 
+  const {
+    data: inviteInfo,
+    isLoading: inviteLoading,
+    isError: inviteError,
+  } = useQuery({
+    queryKey: ["invite", inviteToken],
+    queryFn: async () => {
+      const res = await api.get<InviteInfo>(`/invites/validate/${inviteToken}`)
+      return res.data
+    },
+    enabled: !!inviteToken,
+    retry: false,
+  })
+
   useEffect(() => {
-    if (inviteToken) {
-      setInviteLoading(true)
-      api.get(`/invites/validate/${inviteToken}`)
-        .then((res) => {
-          setInviteInfo(res.data)
-          if (res.data.email) setValue("email", res.data.email)
-          if (res.data.designation) setValue("designation", res.data.designation)
-        })
-        .catch(() => setError("This invite link is invalid or has expired."))
-        .finally(() => setInviteLoading(false))
-    }
-  }, [inviteToken, setValue])
+    if (!inviteInfo) return
+    if (inviteInfo.email) setValue("email", inviteInfo.email)
+    if (inviteInfo.designation) setValue("designation", inviteInfo.designation)
+  }, [inviteInfo, setValue])
 
   if (isAuthenticated) return <Navigate to="/chat" replace />
 
@@ -82,8 +88,8 @@ export function SignupPage() {
         created_at: new Date().toISOString(),
       })
       navigate("/chat")
-    } catch (err: any) {
-      setError(err.response?.data?.detail || "Signup failed. Please try again.")
+    } catch (err: unknown) {
+      setError(getApiErrorMessage(err, "Signup failed. Please try again."))
     } finally {
       setLoading(false)
     }
@@ -104,6 +110,12 @@ export function SignupPage() {
               {inviteInfo.designation ? ` — ${inviteInfo.designation}` : ""}
             </p>
           </div>
+        </div>
+      )}
+
+      {inviteToken && inviteError && (
+        <div className="text-red-600 text-sm text-center bg-red-50 border border-red-100 rounded-lg px-3 py-2 mb-4">
+          This invite link is invalid or has expired.
         </div>
       )}
 
