@@ -1,8 +1,7 @@
 from fastapi import Depends, HTTPException, status
 from fastapi.security import HTTPBearer, HTTPAuthorizationCredentials
-from sqlalchemy.ext.asyncio import AsyncSession
 from sqlalchemy import select
-from app.db.postgres import get_db
+from app.db.postgres import session_scope
 from app.db.models.user import User, UserRole
 from app.core.security import decode_access_token
 from app.core.permissions import has_permission
@@ -12,12 +11,10 @@ bearer_scheme = HTTPBearer()
 
 async def get_current_user(
     credentials: HTTPAuthorizationCredentials = Depends(bearer_scheme),
-    db: AsyncSession = Depends(get_db),
 ) -> User:
     """
     Validates JWT token from Authorization header.
-    Returns the logged-in User object.
-    Raises 401 if token is invalid or expired.
+    Uses a short-lived DB session so long chat requests don't hold connections.
     """
     token = credentials.credentials
     payload = decode_access_token(token)
@@ -36,24 +33,24 @@ async def get_current_user(
             detail="Token missing user ID",
         )
 
-    result = await db.execute(
-        select(User).where(User.id == user_id)
-    )
-    user = result.scalars().first()
+    async with session_scope() as db:
+        result = await db.execute(select(User).where(User.id == user_id))
+        user = result.scalars().first()
 
-    if not user:
-        raise HTTPException(
-            status_code=status.HTTP_401_UNAUTHORIZED,
-            detail="User not found",
-        )
+        if not user:
+            raise HTTPException(
+                status_code=status.HTTP_401_UNAUTHORIZED,
+                detail="User not found",
+            )
 
-    if not user.is_active:
-        raise HTTPException(
-            status_code=status.HTTP_403_FORBIDDEN,
-            detail="User account is deactivated",
-        )
+        if not user.is_active:
+            raise HTTPException(
+                status_code=status.HTTP_403_FORBIDDEN,
+                detail="User account is deactivated",
+            )
 
-    return user
+        db.expunge(user)
+        return user
 
 
 def require_role(required_role: UserRole):

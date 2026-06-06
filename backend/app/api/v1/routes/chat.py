@@ -1,6 +1,5 @@
 import time
 import json
-import asyncio
 import uuid
 from fastapi import APIRouter, Depends, HTTPException, status
 from fastapi.responses import StreamingResponse
@@ -267,21 +266,21 @@ async def _run_pipeline(
 ) -> dict:
     async with session_scope() as db:
         filter_context = await metadata_filter.build_filter_context(db=db, query=clean_query)
-
         session_context = ""
         if session_id:
             session_context = await _get_session_context(db, session_id, current_user.id)
 
-        law_chunks, case_chunks, court_cases = await _retrieve_all(
-            query=clean_query,
-            filter_context=filter_context,
-            visa_type=filter_context.visa_type,
-        )
+    law_chunks, case_chunks, court_cases = await _retrieve_all(
+        query=clean_query,
+        filter_context=filter_context,
+        visa_type=filter_context.visa_type,
+    )
 
-        law_chunks = await reranker.rerank(query=clean_query, chunks=law_chunks)
-        case_chunks = await reranker.rerank(query=clean_query, chunks=case_chunks)
-        case_chunks = await clustering.cluster_and_select(chunks=case_chunks)
+    law_chunks = await reranker.rerank(query=clean_query, chunks=law_chunks)
+    case_chunks = await reranker.rerank(query=clean_query, chunks=case_chunks)
+    case_chunks = await clustering.cluster_and_select(chunks=case_chunks)
 
+    async with session_scope() as db:
         context = await context_builder.build(
             db=db,
             law_chunks=law_chunks,
@@ -289,20 +288,20 @@ async def _run_pipeline(
             court_cases=court_cases,
         )
 
-        if extra_context:
-            context.context_text = extra_context + "\n\n" + context.context_text
+    if extra_context:
+        context.context_text = extra_context + "\n\n" + context.context_text
 
-        if session_context:
-            context.context_text = (
-                f"## PREVIOUS CONVERSATION\n{session_context}\n\n" + context.context_text
-            )
-
-        prompt = prompt_builder.build(
-            query=clean_query,
-            context=context,
-            visa_type=filter_context.visa_type,
-            query_mode=query_mode,
+    if session_context:
+        context.context_text = (
+            f"## PREVIOUS CONVERSATION\n{session_context}\n\n" + context.context_text
         )
+
+    prompt = prompt_builder.build(
+        query=clean_query,
+        context=context,
+        visa_type=filter_context.visa_type,
+        query_mode=query_mode,
+    )
 
     gpt_response = await gpt_client.complete(prompt)
 
@@ -417,16 +416,17 @@ async def _stream_pipeline(
             filter_context = await metadata_filter.build_filter_context(db=db, query=clean_query)
             session_context = await _get_session_context(db, session_id, current_user.id)
 
-            law_chunks, case_chunks, court_cases = await _retrieve_all(
-                query=clean_query,
-                filter_context=filter_context,
-                visa_type=filter_context.visa_type,
-            )
+        law_chunks, case_chunks, court_cases = await _retrieve_all(
+            query=clean_query,
+            filter_context=filter_context,
+            visa_type=filter_context.visa_type,
+        )
 
-            law_chunks = await reranker.rerank(query=clean_query, chunks=law_chunks)
-            case_chunks = await reranker.rerank(query=clean_query, chunks=case_chunks)
-            case_chunks = await clustering.cluster_and_select(chunks=case_chunks)
+        law_chunks = await reranker.rerank(query=clean_query, chunks=law_chunks)
+        case_chunks = await reranker.rerank(query=clean_query, chunks=case_chunks)
+        case_chunks = await clustering.cluster_and_select(chunks=case_chunks)
 
+        async with session_scope() as db:
             context = await context_builder.build(
                 db=db,
                 law_chunks=law_chunks,
@@ -434,17 +434,17 @@ async def _stream_pipeline(
                 court_cases=court_cases,
             )
 
-            if session_context:
-                context.context_text = (
-                    f"## PREVIOUS CONVERSATION\n{session_context}\n\n" + context.context_text
-                )
-
-            prompt = prompt_builder.build(
-                query=clean_query,
-                context=context,
-                visa_type=filter_context.visa_type,
-                query_mode=query_mode,
+        if session_context:
+            context.context_text = (
+                f"## PREVIOUS CONVERSATION\n{session_context}\n\n" + context.context_text
             )
+
+        prompt = prompt_builder.build(
+            query=clean_query,
+            context=context,
+            visa_type=filter_context.visa_type,
+            query_mode=query_mode,
+        )
 
         full_content = ""
         async for chunk in gpt_client.complete_streaming(prompt):
@@ -489,30 +489,23 @@ async def _stream_pipeline(
 async def _retrieve_all(query, filter_context, visa_type) -> tuple:
     scraper = CourtListenerScraper()
     try:
-        milvus_task = hybrid_retriever.retrieve(
-            query=query, filter_context=filter_context
-        )
-        courtlistener_task = scraper.search(
-            query=query,
-            visa_type=visa_type,
-            max_results=settings.COURTLISTENER_MAX_RESULTS,
-        )
-        results = await asyncio.gather(
-            milvus_task, courtlistener_task, return_exceptions=True
-        )
-        milvus_result, court_cases_result = results[0], results[1]
-
-        if isinstance(milvus_result, Exception):
-            logger.error(f"Milvus retrieval failed: {milvus_result}")
+        try:
+            law_chunks, case_chunks = await hybrid_retriever.retrieve(
+                query=query, filter_context=filter_context
+            )
+        except Exception as e:
+            logger.error(f"Milvus retrieval failed: {e}")
             law_chunks, case_chunks = [], []
-        else:
-            law_chunks, case_chunks = milvus_result
 
-        if isinstance(court_cases_result, Exception):
-            logger.error(f"CourtListener search failed: {court_cases_result}")
+        try:
+            court_cases = await scraper.search(
+                query=query,
+                visa_type=visa_type,
+                max_results=settings.COURTLISTENER_MAX_RESULTS,
+            )
+        except Exception as e:
+            logger.error(f"CourtListener search failed: {e}")
             court_cases = []
-        else:
-            court_cases = court_cases_result
 
         return law_chunks, case_chunks, court_cases
     finally:

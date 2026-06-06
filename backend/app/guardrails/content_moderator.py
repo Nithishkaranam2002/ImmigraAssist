@@ -31,6 +31,20 @@ IMMIGRATION_KEYWORDS = [
     "dependent", "spouse", "employer", "employee", "petition",
     "priority date", "labor certification", "perm", "ac21",
     "portability", "extension", "renewal", "status", "overstay",
+    "cap", "lottery", "quota", "nonimmigrant", "beneficiary",
+]
+
+# normalize hyphenated visa codes so "H-1B" matches keyword "h1b"
+VISA_NORMALIZATIONS = [
+    (re.compile(r"\bh[-\s]?1b\b", re.IGNORECASE), "h1b"),
+    (re.compile(r"\bh[-\s]?4\b", re.IGNORECASE), "h4"),
+    (re.compile(r"\bl[-\s]?1[ab]?\b", re.IGNORECASE), "l1"),
+    (re.compile(r"\bo[-\s]?1\b", re.IGNORECASE), "o1"),
+    (re.compile(r"\beb[-\s]?1\b", re.IGNORECASE), "eb1"),
+    (re.compile(r"\beb[-\s]?2\b", re.IGNORECASE), "eb2"),
+    (re.compile(r"\bf[-\s]?1\b", re.IGNORECASE), "f1"),
+    (re.compile(r"\bb[-\s]?1\b", re.IGNORECASE), "b1"),
+    (re.compile(r"\bb[-\s]?2\b", re.IGNORECASE), "b2"),
 ]
 
 # blocked patterns — queries that should never be processed
@@ -69,6 +83,17 @@ class ContentModerator:
         # self.llamaguard = LlamaGuardClient(settings.LLAMAGUARD_MODEL)
         logger.info("Content moderator initialized (rule-based mode)")
 
+    def _normalize_for_scope(self, query: str) -> str:
+        """Collapse H-1B-style spellings so scope keywords match."""
+        normalized = query.lower()
+        for pattern, replacement in VISA_NORMALIZATIONS:
+            normalized = pattern.sub(replacement, normalized)
+        return normalized
+
+    def _immigration_score(self, query: str) -> int:
+        normalized = self._normalize_for_scope(query)
+        return sum(1 for kw in IMMIGRATION_KEYWORDS if kw in normalized)
+
     def moderate(self, query: str) -> ModerationResult:
         """
         Main entry point.
@@ -94,13 +119,10 @@ class ContentModerator:
                 )
 
         # ── Layer 2: Scope check ───────────────────────────────────────
-        query_lower = query.lower()
-        immigration_score = sum(
-            1 for kw in IMMIGRATION_KEYWORDS if kw in query_lower
-        )
+        immigration_score = self._immigration_score(query)
 
-        # very short queries get a pass — could be a follow-up
-        if len(query.split()) > 8 and immigration_score == 0:
+        # short queries get a pass — could be a follow-up ("what about that?")
+        if len(query.split()) > 6 and immigration_score == 0:
             logger.warning(f"Query out of scope: '{query[:80]}'")
             return ModerationResult(
                 status=ModerationStatus.BLOCKED,
