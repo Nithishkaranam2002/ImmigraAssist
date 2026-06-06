@@ -1,4 +1,3 @@
-import asyncio
 import re
 from dataclasses import dataclass
 from sqlalchemy.ext.asyncio import AsyncSession
@@ -140,11 +139,10 @@ class ContextBuilder:
             f"{len(court_cases)} court cases"
         )
 
-        case_chunks, doc_filenames, case_filenames = await asyncio.gather(
-            self.resolver.resolve(db, case_chunks),
-            self._fetch_doc_filenames_by_doc_id(db, law_chunks),
-            self._fetch_doc_filenames_by_doc_id(db, case_chunks),
-        )
+        # Sequential — AsyncSession does not allow concurrent operations on one session
+        case_chunks = await self.resolver.resolve(db, case_chunks)
+        doc_filenames = await self._fetch_doc_filenames_by_doc_id(db, law_chunks)
+        case_filenames = await self._fetch_doc_filenames_by_doc_id(db, case_chunks)
 
         law_section = self._format_law_chunks(law_chunks, doc_filenames)
         case_section = self._format_case_chunks(case_chunks, case_filenames)

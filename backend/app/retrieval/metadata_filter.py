@@ -1,4 +1,3 @@
-import asyncio
 import re
 from dataclasses import dataclass
 from typing import Optional
@@ -59,19 +58,18 @@ class MetadataFilter:
             f"years: {year_min}-{year_max}"
         )
 
-        law_doc_ids, case_doc_ids = await asyncio.gather(
-            self._fetch_document_ids(
-                db=db,
-                doc_type=DocumentType.LAW,
-                visa_type=visa_type,
-            ),
-            self._fetch_document_ids(
-                db=db,
-                doc_type=DocumentType.CASE,
-                visa_type=visa_type,
-                year_min=year_min,
-                year_max=year_max,
-            ),
+        # Sequential — AsyncSession does not allow concurrent operations on one session
+        law_doc_ids = await self._fetch_document_ids(
+            db=db,
+            doc_type=DocumentType.LAW,
+            visa_type=visa_type,
+        )
+        case_doc_ids = await self._fetch_document_ids(
+            db=db,
+            doc_type=DocumentType.CASE,
+            visa_type=visa_type,
+            year_min=year_min,
+            year_max=year_max,
         )
 
         # if no filtered docs found, fall back to all docs
