@@ -1,3 +1,4 @@
+from app.config import settings
 from sqlalchemy.ext.asyncio import AsyncSession
 from sqlalchemy import select
 from app.db.models.section_map import SectionMap
@@ -37,9 +38,18 @@ class SectionResolver:
         For each case chunk, find old section refs and append
         current equivalent text.
         """
+        if not settings.ENABLE_SECTION_RESOLVE:
+            return chunks
+
         resolved_chunks = []
+        refs_resolved = 0
+        max_refs = 2
 
         for chunk in chunks:
+            if refs_resolved >= max_refs:
+                resolved_chunks.append(chunk)
+                continue
+
             refs = SECTION_REF_PATTERN.findall(chunk.text)
 
             if not refs:
@@ -47,7 +57,7 @@ class SectionResolver:
                 continue
 
             enriched_text = chunk.text
-            for ref in refs:
+            for ref in refs[:1]:
                 mapping = await self._lookup_mapping(db, ref)
                 if mapping:
                     current_chunk_text = await self._fetch_chunk_text(
@@ -66,6 +76,7 @@ class SectionResolver:
                         f"'{mapping.current_section}' "
                         f"(score={mapping.similarity_score:.2f})"
                     )
+                    refs_resolved += 1
 
             chunk.text = enriched_text
             resolved_chunks.append(chunk)

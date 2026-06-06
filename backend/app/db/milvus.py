@@ -1,3 +1,5 @@
+import time
+
 from pymilvus import (
     connections,
     Collection,
@@ -68,14 +70,25 @@ INDEX_PARAMS = {
 
 # ─── Connection & setup ────────────────────────────────────────────────────
 
-def connect_milvus():
-    """Connect to Milvus server."""
-    connections.connect(
-        alias="default",
-        host=settings.MILVUS_HOST,
-        port=settings.MILVUS_PORT,
-    )
-    logger.info(f"Connected to Milvus at {settings.MILVUS_HOST}:{settings.MILVUS_PORT}")
+def connect_milvus(max_retries: int = 12, delay: int = 5):
+    """Connect to Milvus server, retrying until it is ready."""
+    for attempt in range(1, max_retries + 1):
+        try:
+            connections.connect(
+                alias="default",
+                host=settings.MILVUS_HOST,
+                port=settings.MILVUS_PORT,
+            )
+            logger.info(f"Connected to Milvus at {settings.MILVUS_HOST}:{settings.MILVUS_PORT}")
+            return
+        except Exception as e:
+            if attempt == max_retries:
+                raise
+            logger.warning(
+                f"Milvus connect attempt {attempt}/{max_retries} failed: {e}, "
+                f"retrying in {delay}s..."
+            )
+            time.sleep(delay)
 
 
 def _create_collection_if_not_exists(name: str, schema: CollectionSchema) -> Collection:

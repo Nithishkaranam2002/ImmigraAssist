@@ -57,9 +57,12 @@ class CourtCase:
     outcome: Optional[str]
 
 
+from app.config import settings
+
+
 class CourtListenerScraper:
 
-    TIMEOUT = 15
+    TIMEOUT = settings.COURTLISTENER_TIMEOUT
 
     VISA_PATTERNS = {
         "h1b": ["h-1b", "h1b", "specialty occupation"],

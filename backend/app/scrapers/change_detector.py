@@ -63,7 +63,16 @@ class ChangeDetector:
             )
 
         if record.content_hash == new_hash:
-            # same content
+            # Re-process if previous scrape/ingestion failed
+            if record.status == ScrapeStatus.FAILED:
+                logger.info(f"RETRY previously failed: {url}")
+                return ChangeResult(
+                    url=url,
+                    change_type=ChangeType.CHANGED,
+                    old_hash=record.content_hash,
+                    new_hash=new_hash,
+                    should_process=True,
+                )
             logger.debug(f"UNCHANGED: {url}")
             return ChangeResult(
                 url=url,

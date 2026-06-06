@@ -1,3 +1,4 @@
+import asyncio
 from dataclasses import dataclass
 from typing import Optional
 from rank_bm25 import BM25Okapi
@@ -46,24 +47,25 @@ class HybridRetriever:
 
         query_embedding = await self.embedder.aembed_query(query)
 
-        law_chunks = await self._hybrid_search(
-            db=db,
-            query=query,
-            query_embedding=query_embedding,
-            collection=get_laws_collection(),
-            document_ids=filter_context.law_document_ids,
-            source="law",
-            top_k=settings.TOP_K_LAWS,
-        )
-
-        case_chunks = await self._hybrid_search(
-            db=db,
-            query=query,
-            query_embedding=query_embedding,
-            collection=get_cases_collection(),
-            document_ids=filter_context.case_document_ids,
-            source="case",
-            top_k=settings.TOP_K_CASES,
+        law_chunks, case_chunks = await asyncio.gather(
+            self._hybrid_search(
+                db=db,
+                query=query,
+                query_embedding=query_embedding,
+                collection=get_laws_collection(),
+                document_ids=filter_context.law_document_ids,
+                source="law",
+                top_k=settings.TOP_K_LAWS,
+            ),
+            self._hybrid_search(
+                db=db,
+                query=query,
+                query_embedding=query_embedding,
+                collection=get_cases_collection(),
+                document_ids=filter_context.case_document_ids,
+                source="case",
+                top_k=settings.TOP_K_CASES,
+            ),
         )
 
         logger.info(
@@ -125,7 +127,7 @@ class HybridRetriever:
                 anns_field="embedding",
                 param={
                     "metric_type": "COSINE",
-                    "params": {"ef": 128},
+                    "params": {"ef": settings.MILVUS_SEARCH_EF},
                 },
                 limit=top_k * 2,
                 expr=expr,

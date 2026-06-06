@@ -87,10 +87,28 @@ class PIIDetector:
                 pii_found=False,
             )
 
-        if self.model is not None:
-            return self._gliner_redact(text)
-        else:
+        from app.config import settings
+
+        # Fast path: regex is sufficient for typical immigration queries
+        if not settings.USE_GLINER_PII or self.model is None:
             return self._regex_redact(text)
+
+        if not self._likely_contains_pii(text):
+            return self._regex_redact(text)
+
+        return self._gliner_redact(text)
+
+    def _likely_contains_pii(self, text: str) -> bool:
+        """Skip slow GLiNER when query has no PII indicators."""
+        for pattern in self.REGEX_PATTERNS.values():
+            if pattern.search(text):
+                return True
+        pii_words = (
+            "ssn", "social security", "passport", "date of birth",
+            "my name is", "born on", "alien number", "a-number",
+        )
+        lower = text.lower()
+        return any(w in lower for w in pii_words)
 
     def _gliner_redact(self, text: str) -> PIIDetectionResult:
         """Use GLiNER model for PII detection."""

@@ -9,6 +9,10 @@ from app.db.models.audit_log import AuditLog  # noqa
 from app.db.models.feedback import Feedback  # noqa
 from app.db.models.section_map import SectionMap  # noqa
 from app.db.models.scrape_record import ScrapeRecord  # noqa
+from app.db.models.matter import Matter  # noqa
+from app.db.models.chat_query_meta import ChatQueryMeta  # noqa
+from app.db.models.review_item import ReviewItem  # noqa
+from app.db.models.policy_alert import PolicyAlert  # noqa
 
 # import all task modules
 import app.tasks.ingest_task      # noqa

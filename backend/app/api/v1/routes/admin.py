@@ -7,6 +7,7 @@ from app.db.models.document import Document, DocumentStatus
 from app.db.models.chunk import Chunk
 from app.db.models.audit_log import AuditLog
 from app.db.models.feedback import Feedback
+from app.db.models.scrape_record import ScrapeRecord, ScrapeStatus
 from app.api.v1.dependencies import require_role
 from app.db.milvus import get_laws_collection, get_cases_collection
 from app.utils.logger import logger
@@ -138,11 +139,88 @@ async def list_audit_logs(
         for log in logs
     ]
 
+TARGETS = {
+    "uscis_policy": {"documents": 66, "vectors": 657},
+    "uscis_news": {"documents": 20, "vectors": 80},
+    "bia": {"documents": 150, "vectors": 3000},
+    "aao": {"documents": 94, "vectors": 2860},
+}
+
+
+@router.get("/data-completeness")
+async def data_completeness(
+    db: AsyncSession = Depends(get_db),
+    current_user: User = Depends(require_role(UserRole.ADMIN)),
+):
+    """Compare indexed data against target corpus sizes."""
+    from app.scrapers.uscis_policy_scraper import DIRECT_CHAPTER_URLS
+
+    doc_by_type = await db.execute(
+        select(Document.doc_type, func.count(Document.id), func.sum(Document.total_chunks))
+        .where(Document.status == DocumentStatus.COMPLETED)
+        .group_by(Document.doc_type)
+    )
+    doc_rows = {
+        row[0].value: {"documents": row[1], "chunks": row[2] or 0}
+        for row in doc_by_type.fetchall()
+    }
+
+    scrape_by_source = await db.execute(
+        select(ScrapeRecord.source_type, ScrapeRecord.status, func.count(ScrapeRecord.id))
+        .group_by(ScrapeRecord.source_type, ScrapeRecord.status)
+    )
+    scrape_stats: dict[str, dict] = {}
+    for source, status, count in scrape_by_source.fetchall():
+        scrape_stats.setdefault(source, {})[status.value] = count
+
+    scraped_policy_urls = await db.execute(
+        select(func.count(ScrapeRecord.id)).where(ScrapeRecord.source_type == "uscis_policy")
+    )
+    policy_scraped = scraped_policy_urls.scalar() or 0
+    policy_target = len(DIRECT_CHAPTER_URLS)
+
+    milvus = {}
+    try:
+        laws_col = get_laws_collection()
+        cases_col = get_cases_collection()
+        milvus = {"laws": laws_col.num_entities, "cases": cases_col.num_entities}
+    except Exception as e:
+        milvus = {"error": str(e)}
+
+    law_docs = doc_rows.get("law", {}).get("documents", 0)
+    case_docs = doc_rows.get("case", {}).get("documents", 0)
+    law_chunks = doc_rows.get("law", {}).get("chunks", 0)
+    case_chunks = doc_rows.get("case", {}).get("chunks", 0)
+
+    return {
+        "documents": {
+            "law": {"count": law_docs, "target": 86, "chunks": law_chunks, "chunk_target": 737},
+            "case": {"count": case_docs, "target": 244, "chunks": case_chunks, "chunk_target": 5860},
+            "total": {"count": law_docs + case_docs, "target": 330},
+        },
+        "milvus_vectors": {
+            "laws": {"count": milvus.get("laws", 0), "target": 657},
+            "cases": {"count": milvus.get("cases", 0), "target": 5860},
+            "total": {"count": milvus.get("laws", 0) + milvus.get("cases", 0), "target": 6597},
+        },
+        "scrape_records": scrape_stats,
+        "policy_chapters": {
+            "scraped": policy_scraped,
+            "target": policy_target,
+            "missing": max(0, policy_target - policy_scraped),
+        },
+        "completeness_pct": round(
+            (milvus.get("laws", 0) + milvus.get("cases", 0)) / 6597 * 100, 1
+        ) if isinstance(milvus.get("laws"), int) else 0,
+    }
+
+
 @router.post("/scrape/trigger")
 async def trigger_scraper(
     scrape_policy: bool = True,
     scrape_news: bool = True,
     scrape_bia: bool = True,
+    retry_failed: bool = True,
     current_user: User = Depends(require_role(UserRole.ADMIN)),
 ):
     """
@@ -154,6 +232,7 @@ async def trigger_scraper(
         scrape_policy=scrape_policy,
         scrape_news=scrape_news,
         scrape_bia=scrape_bia,
+        retry_failed=retry_failed,
     )
     logger.info(
         f"Scraper manually triggered by {current_user.email} "
@@ -165,4 +244,15 @@ async def trigger_scraper(
         "scrape_policy": scrape_policy,
         "scrape_news": scrape_news,
         "scrape_bia": scrape_bia,
+        "retry_failed": retry_failed,
     }
+
+
+@router.post("/scrape/missing-policy")
+async def scrape_missing_policy(
+    current_user: User = Depends(require_role(UserRole.ADMIN)),
+):
+    """Scrape only USCIS policy chapters not yet in scrape_records."""
+    from app.tasks.scraper_task import run_missing_policy_task
+    task = run_missing_policy_task.delay()
+    return {"message": "Missing policy scrape started", "task_id": task.id}

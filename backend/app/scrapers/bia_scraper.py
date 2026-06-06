@@ -1,13 +1,14 @@
 import httpx
 import asyncio
+import re
 from dataclasses import dataclass
 from typing import Optional
+from app.config import settings
 from app.utils.logger import logger
 
 
 COURTLISTENER_BASE = "https://www.courtlistener.com/api/rest/v4"
 
-# Immigration-specific search terms to get relevant BIA/AAO decisions
 BIA_SEARCH_QUERIES = [
     "H-1B specialty occupation denial appeal",
     "H-4 dependent spouse employment authorization",
@@ -19,6 +20,16 @@ BIA_SEARCH_QUERIES = [
     "I-140 immigrant petition denial",
     "AC21 portability H-1B job change",
     "asylum credibility determination",
+    "cancellation of removal",
+    "U visa humanitarian",
+    "T visa trafficking victim",
+    "VAWA self petition",
+    "TPS temporary protected status",
+    "consular processing immigrant visa",
+    "INA 212 waiver inadmissibility",
+    "Matter of administrative appeal",
+    "BIA precedent immigration",
+    "employment based immigration petition",
 ]
 
 AAO_SEARCH_QUERIES = [
@@ -28,6 +39,10 @@ AAO_SEARCH_QUERIES = [
     "multinational manager L-1A denial",
     "specialized knowledge L-1B denial",
     "investor visa EB-5 denial",
+    "NIW national interest waiver",
+    "EB-1A extraordinary ability",
+    "EB-1B outstanding professor researcher",
+    "O-1B arts athletics",
 ]
 
 
@@ -43,27 +58,28 @@ class ScrapedPage:
 class BIAScraper:
     """
     Fetches BIA and AAO immigration case decisions from CourtListener API.
-    CourtListener has 4000+ BIA decisions indexed as structured data.
-    Much more reliable than scraping DOJ website directly.
+    Fetches full opinion text when available for richer chunking.
     """
 
-    TIMEOUT = 20
-    MAX_PER_QUERY = 3
+    TIMEOUT = 30
+    MAX_PER_PAGE = 20
+    MAX_PAGES_PER_QUERY = 3
 
     def __init__(self):
-        self.client = httpx.AsyncClient(
-            timeout=self.TIMEOUT,
-            headers={
-                "User-Agent": "ImmigraAssist/1.0 Legal Research Tool",
-                "Accept": "application/json",
-            }
-        )
+        headers = {
+            "User-Agent": "ImmigraAssist/1.0 Legal Research Tool",
+            "Accept": "application/json",
+        }
+        token = getattr(settings, "COURTLISTENER_API_TOKEN", "") or ""
+        if token:
+            headers["Authorization"] = f"Token {token}"
+
+        self.client = httpx.AsyncClient(timeout=self.TIMEOUT, headers=headers)
 
     async def scrape_all(self) -> list[ScrapedPage]:
         logger.info("BIA/AAO scraper started — fetching from CourtListener")
         pages = []
 
-        # fetch BIA decisions
         bia_pages = await self._fetch_court_decisions(
             queries=BIA_SEARCH_QUERIES,
             court="bia",
@@ -71,7 +87,6 @@ class BIAScraper:
         )
         pages.extend(bia_pages)
 
-        # fetch AAO decisions
         aao_pages = await self._fetch_court_decisions(
             queries=AAO_SEARCH_QUERIES,
             court="aao",
@@ -89,93 +104,125 @@ class BIAScraper:
         source_type: str,
     ) -> list[ScrapedPage]:
         pages = []
-        seen_ids = set()
+        seen_ids: set[str] = set()
 
         for query in queries:
-            try:
-                params = {
-                    "q": query,
-                    "type": "o",
-                    "order_by": "score desc",
-                    "stat_Precedential": "on",
-                    "page_size": self.MAX_PER_QUERY,
-                }
+            for page_num in range(1, self.MAX_PAGES_PER_QUERY + 1):
+                try:
+                    params = {
+                        "q": query,
+                        "type": "o",
+                        "order_by": "score desc",
+                        "stat_Precedential": "on",
+                        "page_size": self.MAX_PER_PAGE,
+                        "page": page_num,
+                    }
+                    if court == "bia":
+                        params["court"] = "bia"
 
-                # filter by court for BIA
-                if court == "bia":
-                    params["court"] = "bia"
+                    response = await self.client.get(
+                        f"{COURTLISTENER_BASE}/search/",
+                        params=params,
+                    )
+                    response.raise_for_status()
+                    data = response.json()
+                    results = data.get("results", [])
 
-                response = await self.client.get(
-                    f"{COURTLISTENER_BASE}/search/",
-                    params=params,
-                )
-                response.raise_for_status()
-                data = response.json()
+                    if not results:
+                        break
 
-                results = data.get("results", [])
-                logger.info(
-                    f"CourtListener {court.upper()} query '{query[:40]}' "
-                    f"→ {len(results)} results"
-                )
-
-                for result in results:
-                    case_id = str(
-                        result.get("cluster_id") or result.get("id", "")
+                    logger.info(
+                        f"CourtListener {court.upper()} '{query[:35]}' page {page_num} "
+                        f"→ {len(results)} results"
                     )
 
-                    if case_id in seen_ids:
-                        continue
-                    seen_ids.add(case_id)
+                    for result in results:
+                        case_id = str(result.get("cluster_id") or result.get("id", ""))
+                        if not case_id or case_id in seen_ids:
+                            continue
+                        seen_ids.add(case_id)
 
-                    page = self._parse_result(result, source_type)
-                    if page:
-                        pages.append(page)
+                        page = await self._parse_result(result, source_type)
+                        if page:
+                            pages.append(page)
 
-                # polite delay between queries
-                await asyncio.sleep(1)
+                    if not data.get("next"):
+                        break
 
-            except Exception as e:
-                logger.error(f"Failed to fetch {court} decisions for '{query}': {e}")
-                continue
+                    await asyncio.sleep(1.5)
+
+                except Exception as e:
+                    logger.error(f"Failed to fetch {court} page {page_num} for '{query}': {e}")
+                    break
+
+            await asyncio.sleep(1)
 
         return pages
 
-    def _parse_result(self, result: dict, source_type: str) -> Optional[ScrapedPage]:
+    async def _fetch_opinion_text(self, result: dict) -> str:
+        """Fetch full opinion plain text from CourtListener when available."""
+        opinion_id = None
+        opinions = result.get("opinions", [])
+        if opinions:
+            opinion_id = opinions[0].get("id")
+
+        if not opinion_id:
+            cluster_id = result.get("cluster_id")
+            if cluster_id:
+                try:
+                    resp = await self.client.get(f"{COURTLISTENER_BASE}/clusters/{cluster_id}/")
+                    if resp.status_code == 200:
+                        cluster = resp.json()
+                        sub_opinions = cluster.get("sub_opinions", [])
+                        if sub_opinions:
+                            opinion_id = sub_opinions[0]
+                except Exception:
+                    pass
+
+        if not opinion_id:
+            return ""
+
+        try:
+            resp = await self.client.get(f"{COURTLISTENER_BASE}/opinions/{opinion_id}/")
+            resp.raise_for_status()
+            opinion = resp.json()
+            plain = opinion.get("plain_text") or ""
+            if plain and len(plain) > 500:
+                return plain[:50000]
+            html = opinion.get("html_with_citations") or opinion.get("html") or ""
+            if html:
+                return re.sub(r"<[^>]+>", " ", html)[:50000]
+        except Exception as e:
+            logger.debug(f"Could not fetch opinion {opinion_id}: {e}")
+
+        return ""
+
+    async def _parse_result(self, result: dict, source_type: str) -> Optional[ScrapedPage]:
         try:
             case_name = (
                 result.get("caseName") or
                 result.get("caseNameFull") or
                 "Unknown Case"
             )
-
-            case_id = str(
-                result.get("cluster_id") or result.get("id", "")
-            )
-
+            case_id = str(result.get("cluster_id") or result.get("id", ""))
             court = result.get("court", source_type.upper())
-            date_filed = (
-                result.get("dateFiled") or
-                result.get("date_filed", "")
-            )
-
+            date_filed = result.get("dateFiled") or result.get("date_filed", "")
             citations = result.get("citation", [])
             citation = citations[0] if citations else ""
 
-            # get snippet from opinions
             snippet = result.get("snippet", "")
             if not snippet:
                 opinions = result.get("opinions", [])
                 if opinions:
                     snippet = opinions[0].get("snippet", "")
-
-            # clean HTML from snippet
-            import re
             if snippet:
                 snippet = re.sub(r"<[^>]+>", "", snippet).strip()
 
             syllabus = result.get("syllabus", "")
             if syllabus:
                 syllabus = re.sub(r"<[^>]+>", "", syllabus).strip()
+
+            full_text = await self._fetch_opinion_text(result)
 
             absolute_url = result.get("absolute_url", "")
             url = (
@@ -184,10 +231,8 @@ class BIAScraper:
                 else f"https://www.courtlistener.com/opinion/{case_id}/"
             )
 
-            # detect outcome
-            outcome = self._detect_outcome(snippet + " " + syllabus)
+            outcome = self._detect_outcome((snippet or "") + " " + (syllabus or "") + " " + (full_text[:2000]))
 
-            # build full content for ingestion
             content_parts = [
                 f"CASE: {case_name}",
                 f"SOURCE: {source_type.upper()} Decision",
@@ -202,9 +247,11 @@ class BIAScraper:
             ]
 
             if syllabus:
-                content_parts.append(f"SYLLABUS:\n{syllabus}\n")
+                content_parts.append(f"SYLLABUS:\n{syllabus}\n\n")
 
-            if snippet:
+            if full_text:
+                content_parts.append(f"FULL OPINION:\n{full_text}")
+            elif snippet:
                 content_parts.append(f"DECISION EXCERPT:\n{snippet}")
 
             content = "\n".join(content_parts)
@@ -213,8 +260,7 @@ class BIAScraper:
                 return None
 
             title = f"{case_name} ({citation or case_id})"
-
-            logger.info(f"Parsed {source_type.upper()} decision: {case_name[:60]}")
+            logger.info(f"Parsed {source_type.upper()}: {case_name[:50]} ({len(content)} chars)")
 
             return ScrapedPage(
                 url=url,

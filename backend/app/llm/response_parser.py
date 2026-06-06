@@ -7,12 +7,15 @@ from app.utils.logger import logger
 
 @dataclass
 class ParsedResponse:
-    answer: str                        # main answer text
-    cited_laws: list[str]              # extracted law citations
-    cited_cases: list[str]             # extracted case citations
-    important_notes: list[str]         # caveats and warnings
-    raw_content: str                   # original GPT output
-    is_well_formed: bool               # did GPT follow the format?
+    answer: str
+    cited_laws: list[str]
+    cited_cases: list[str]
+    important_notes: list[str]
+    next_steps: list[str]
+    risks: list[str]
+    related_forms: list[str]
+    raw_content: str
+    is_well_formed: bool
 
 
 class ResponseParser:
@@ -43,7 +46,19 @@ class ResponseParser:
         re.DOTALL | re.IGNORECASE,
     )
     NOTES_PATTERN = re.compile(
-        r"\*\*IMPORTANT NOTES:\*\*\s*(.*?)(?=\*\*ANSWER:\*\*|\*\*CITED LAWS:\*\*|\*\*CITED CASES:\*\*|$)",
+        r"\*\*IMPORTANT NOTES:\*\*\s*(.*?)(?=\*\*NEXT STEPS:\*\*|\*\*RISKS|\*\*RELATED FORMS:\*\*|\*\*ANSWER:\*\*|$)",
+        re.DOTALL | re.IGNORECASE,
+    )
+    NEXT_STEPS_PATTERN = re.compile(
+        r"\*\*NEXT STEPS:\*\*\s*(.*?)(?=\*\*RISKS|\*\*RELATED FORMS:\*\*|$)",
+        re.DOTALL | re.IGNORECASE,
+    )
+    RISKS_PATTERN = re.compile(
+        r"\*\*RISKS(?:\s*&\s*CONSIDERATIONS)?:\*\*\s*(.*?)(?=\*\*RELATED FORMS:\*\*|$)",
+        re.DOTALL | re.IGNORECASE,
+    )
+    FORMS_PATTERN = re.compile(
+        r"\*\*RELATED FORMS:\*\*\s*(.*?)$",
         re.DOTALL | re.IGNORECASE,
     )
 
@@ -63,9 +78,11 @@ class ResponseParser:
         cited_laws_raw = self._extract_section(self.CITED_LAWS_PATTERN, content)
         cited_cases_raw = self._extract_section(self.CITED_CASES_PATTERN, content)
         notes_raw = self._extract_section(self.NOTES_PATTERN, content)
+        next_steps_raw = self._extract_section(self.NEXT_STEPS_PATTERN, content)
+        risks_raw = self._extract_section(self.RISKS_PATTERN, content)
+        forms_raw = self._extract_section(self.FORMS_PATTERN, content)
 
-        # check if response was well formed
-        is_well_formed = all([answer, cited_laws_raw is not None])
+        is_well_formed = bool(answer)
 
         if not is_well_formed:
             logger.warning(
@@ -78,14 +95,19 @@ class ResponseParser:
                 cited_laws=[],
                 cited_cases=[],
                 important_notes=[],
+                next_steps=[],
+                risks=[],
+                related_forms=[],
                 raw_content=content,
                 is_well_formed=False,
             )
 
-        # parse bullet lists
         cited_laws = self._parse_bullet_list(cited_laws_raw or "")
         cited_cases = self._parse_bullet_list(cited_cases_raw or "")
         important_notes = self._parse_bullet_list(notes_raw or "")
+        next_steps = self._parse_bullet_list(next_steps_raw or "")
+        risks = self._parse_bullet_list(risks_raw or "")
+        related_forms = self._parse_bullet_list(forms_raw or "")
 
         logger.info(
             f"Response parsed — "
@@ -99,6 +121,9 @@ class ResponseParser:
             cited_laws=cited_laws,
             cited_cases=cited_cases,
             important_notes=important_notes,
+            next_steps=next_steps,
+            risks=risks,
+            related_forms=related_forms,
             raw_content=content,
             is_well_formed=True,
         )
@@ -145,6 +170,9 @@ class ResponseParser:
             cited_laws=[],
             cited_cases=[],
             important_notes=["Response generation failed — please retry"],
+            next_steps=[],
+            risks=[],
+            related_forms=[],
             raw_content=content,
             is_well_formed=False,
         )

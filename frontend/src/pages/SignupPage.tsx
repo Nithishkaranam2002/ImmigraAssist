@@ -3,10 +3,10 @@ import { useNavigate, Navigate, Link, useSearchParams } from "react-router-dom"
 import { useForm } from "react-hook-form"
 import { zodResolver } from "@hookform/resolvers/zod"
 import { z } from "zod"
-import { Scale, Loader2, CheckCircle } from "lucide-react"
+import { Loader2, CheckCircle } from "lucide-react"
 import { Button } from "@/components/ui/button"
 import { Input } from "@/components/ui/input"
-import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card"
+import { AuthLayout } from "@/components/auth/AuthLayout"
 import { authService } from "@/services/authService"
 import { useAuthStore } from "@/store/authStore"
 import api from "@/services/api"
@@ -51,19 +51,13 @@ export function SignupPage() {
       api.get(`/invites/validate/${inviteToken}`)
         .then((res) => {
           setInviteInfo(res.data)
-          if (res.data.email) {
-            setValue("email", res.data.email)
-          }
-          if (res.data.designation) {
-            setValue("designation", res.data.designation)
-          }
+          if (res.data.email) setValue("email", res.data.email)
+          if (res.data.designation) setValue("designation", res.data.designation)
         })
-        .catch(() => {
-          setError("This invite link is invalid or has expired.")
-        })
+        .catch(() => setError("This invite link is invalid or has expired."))
         .finally(() => setInviteLoading(false))
     }
-  }, [inviteToken])
+  }, [inviteToken, setValue])
 
   if (isAuthenticated) return <Navigate to="/chat" replace />
 
@@ -96,110 +90,99 @@ export function SignupPage() {
   }
 
   return (
-    <div className="min-h-screen bg-gray-50 flex items-center justify-center p-4">
-      <div className="w-full max-w-md">
-        <div className="flex items-center justify-center gap-3 mb-8">
-          <div className="w-10 h-10 bg-blue-600 rounded-xl flex items-center justify-center">
-            <Scale className="w-5 h-5 text-white" />
-          </div>
+    <AuthLayout
+      title="Create your account"
+      subtitle="Join your firm's immigration research workspace"
+    >
+      {inviteToken && inviteInfo && (
+        <div className="flex items-center gap-2 bg-green-50 border border-green-200 rounded-lg px-4 py-3 mb-4">
+          <CheckCircle className="w-4 h-4 text-green-600 shrink-0" />
           <div>
-            <h1 className="text-xl font-bold text-gray-900">ImmigraAssist</h1>
-            <p className="text-xs text-gray-500">From Policies to Precedents, Instantly.</p>
+            <p className="text-sm font-medium text-green-800">Valid invite link</p>
+            <p className="text-xs text-green-600">
+              You'll be registered as {inviteInfo.role.replace("_", " ")}
+              {inviteInfo.designation ? ` — ${inviteInfo.designation}` : ""}
+            </p>
           </div>
         </div>
+      )}
 
-        {inviteToken && inviteInfo && (
-          <div className="flex items-center gap-2 bg-green-50 border border-green-200 rounded-lg px-4 py-3 mb-4">
-            <CheckCircle className="w-4 h-4 text-green-600 shrink-0" />
-            <div>
-              <p className="text-sm font-medium text-green-800">Valid invite link</p>
-              <p className="text-xs text-green-600">
-                You'll be registered as {inviteInfo.role.replace("_", " ")}
-                {inviteInfo.designation ? ` — ${inviteInfo.designation}` : ""}
-              </p>
+      {inviteLoading && (
+        <div className="flex items-center justify-center gap-2 mb-4 text-slate-500 text-sm">
+          <Loader2 className="w-4 h-4 animate-spin" />
+          Validating invite...
+        </div>
+      )}
+
+      <div className="bg-white rounded-xl border border-slate-200 shadow-sm p-6 sm:p-8">
+        <form onSubmit={handleSubmit(onSubmit)} className="space-y-4">
+          <div>
+            <label className="text-sm font-medium text-slate-700 block mb-1.5">Full Name</label>
+            <Input type="text" placeholder="John Smith" {...register("full_name")} />
+            {errors.full_name && <p className="text-red-500 text-xs mt-1">{errors.full_name.message}</p>}
+          </div>
+
+          <div>
+            <label className="text-sm font-medium text-slate-700 block mb-1.5">Email</label>
+            <Input
+              type="email"
+              placeholder="you@firm.com"
+              {...register("email")}
+              readOnly={!!inviteInfo?.email}
+              className={inviteInfo?.email ? "bg-slate-50" : ""}
+            />
+            {errors.email && <p className="text-red-500 text-xs mt-1">{errors.email.message}</p>}
+          </div>
+
+          <div>
+            <label className="text-sm font-medium text-slate-700 block mb-1.5">Designation</label>
+            <Input
+              type="text"
+              placeholder="e.g. Junior Immigration Associate"
+              {...register("designation")}
+              readOnly={!!inviteInfo?.designation}
+              className={inviteInfo?.designation ? "bg-slate-50" : ""}
+            />
+          </div>
+
+          <div>
+            <label className="text-sm font-medium text-slate-700 block mb-1.5">Password</label>
+            <Input type="password" placeholder="Min 8 characters" {...register("password")} />
+            {errors.password && <p className="text-red-500 text-xs mt-1">{errors.password.message}</p>}
+          </div>
+
+          <div>
+            <label className="text-sm font-medium text-slate-700 block mb-1.5">Confirm Password</label>
+            <Input type="password" placeholder="Repeat your password" {...register("confirm_password")} />
+            {errors.confirm_password && <p className="text-red-500 text-xs mt-1">{errors.confirm_password.message}</p>}
+          </div>
+
+          {error && (
+            <div className="text-red-600 text-sm text-center bg-red-50 border border-red-100 rounded-lg px-3 py-2">
+              {error}
             </div>
-          </div>
-        )}
+          )}
 
-        {inviteLoading && (
-          <div className="flex items-center justify-center gap-2 mb-4 text-gray-500 text-sm">
-            <Loader2 className="w-4 h-4 animate-spin" />
-            Validating invite...
-          </div>
-        )}
+          <Button type="submit" className="w-full h-11" disabled={loading}>
+            {loading ? (
+              <><Loader2 className="w-4 h-4 animate-spin mr-2" /> Creating account...</>
+            ) : (
+              "Create Account"
+            )}
+          </Button>
 
-        <Card>
-          <CardHeader>
-            <CardTitle className="text-center">Create your account</CardTitle>
-          </CardHeader>
-          <CardContent>
-            <form onSubmit={handleSubmit(onSubmit)} className="space-y-4">
-              <div>
-                <label className="text-sm font-medium text-gray-700 block mb-1">Full Name</label>
-                <Input type="text" placeholder="John Smith" {...register("full_name")} />
-                {errors.full_name && <p className="text-red-500 text-xs mt-1">{errors.full_name.message}</p>}
-              </div>
-
-              <div>
-                <label className="text-sm font-medium text-gray-700 block mb-1">Email</label>
-                <Input
-                  type="email"
-                  placeholder="you@firm.com"
-                  {...register("email")}
-                  readOnly={!!inviteInfo?.email}
-                  className={inviteInfo?.email ? "bg-gray-50" : ""}
-                />
-                {errors.email && <p className="text-red-500 text-xs mt-1">{errors.email.message}</p>}
-              </div>
-
-              <div>
-                <label className="text-sm font-medium text-gray-700 block mb-1">Designation</label>
-                <Input
-                  type="text"
-                  placeholder="e.g. Junior Immigration Associate"
-                  {...register("designation")}
-                  readOnly={!!inviteInfo?.designation}
-                  className={inviteInfo?.designation ? "bg-gray-50" : ""}
-                />
-              </div>
-
-              <div>
-                <label className="text-sm font-medium text-gray-700 block mb-1">Password</label>
-                <Input type="password" placeholder="Min 8 characters" {...register("password")} />
-                {errors.password && <p className="text-red-500 text-xs mt-1">{errors.password.message}</p>}
-              </div>
-
-              <div>
-                <label className="text-sm font-medium text-gray-700 block mb-1">Confirm Password</label>
-                <Input type="password" placeholder="Repeat your password" {...register("confirm_password")} />
-                {errors.confirm_password && <p className="text-red-500 text-xs mt-1">{errors.confirm_password.message}</p>}
-              </div>
-
-              {error && <p className="text-red-500 text-sm text-center">{error}</p>}
-
-              <Button type="submit" className="w-full" disabled={loading}>
-                {loading ? (
-                  <><Loader2 className="w-4 h-4 animate-spin mr-2" />Creating account...</>
-                ) : (
-                  "Create Account"
-                )}
-              </Button>
-
-              <p className="text-center text-sm text-gray-500">
-                Already have an account?{" "}
-                <Link to="/login" className="text-blue-600 hover:underline font-medium">Sign in</Link>
-              </p>
-            </form>
-          </CardContent>
-        </Card>
-
-        {!inviteToken && (
-          <p className="text-center text-xs text-gray-400 mt-4">
-            New accounts are created as Junior Associate by default.
-            Contact your admin to update your role.
+          <p className="text-center text-sm text-slate-500">
+            Already have an account?{" "}
+            <Link to="/login" className="text-brand-600 hover:text-brand-700 font-medium">Sign in</Link>
           </p>
-        )}
+        </form>
       </div>
-    </div>
+
+      {!inviteToken && (
+        <p className="text-center text-xs text-slate-400 mt-4">
+          New accounts start as Junior Associate. Contact your admin to update your role.
+        </p>
+      )}
+    </AuthLayout>
   )
 }

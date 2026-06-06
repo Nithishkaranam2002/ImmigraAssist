@@ -31,4 +31,9 @@ export const adminService = {
     const response = await api.patch(`/users/${userId}/deactivate`)
     return response.data
   },
+
+  async triggerScrape() {
+    const response = await api.post("/admin/scrape/trigger")
+    return response.data
+  },
 }

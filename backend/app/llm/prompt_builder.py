@@ -37,6 +37,15 @@ Structure every response exactly like this:
 **IMPORTANT NOTES:**
 [Any caveats, date-sensitive information, or areas where the attorney should verify manually]
 
+**NEXT STEPS:**
+[3-5 actionable next steps for the attorney]
+
+**RISKS & CONSIDERATIONS:**
+[Key risks, deadlines, or edge cases to watch]
+
+**RELATED FORMS:**
+[Relevant USCIS forms (e.g. I-129, I-765) with brief purpose]
+
 ## RULES
 - Only use information from the provided context
 - If the context does not contain enough information, say so clearly
@@ -55,22 +64,36 @@ class PromptBuilder:
     2. User message — context + query (dynamic per request)
     """
 
+    COMPARE_ADDENDUM = """
+
+## COMPARE MODE
+The user wants a side-by-side comparison. Structure the ANSWER section as:
+### Option A: [first pathway]
+### Option B: [second pathway]
+### Key Differences
+### Recommendation Framework
+"""
+
     def build(
         self,
         query: str,
         context: BuiltContext,
         visa_type: str | None = None,
+        query_mode: str = "standard",
     ) -> BuiltPrompt:
         """
         Main entry point.
         Returns a BuiltPrompt with system and user messages.
         """
         user_message = self._build_user_message(query, context, visa_type)
+        system = SYSTEM_PROMPT
+        if query_mode == "compare":
+            system += self.COMPARE_ADDENDUM
 
         return BuiltPrompt(
-            system_message=SYSTEM_PROMPT,
+            system_message=system,
             user_message=user_message,
-            total_chars=len(SYSTEM_PROMPT) + len(user_message),
+            total_chars=len(system) + len(user_message),
         )
 
     def _build_user_message(

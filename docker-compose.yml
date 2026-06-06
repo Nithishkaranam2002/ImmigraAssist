@@ -79,15 +79,18 @@ services:
       - "19530:19530"
       - "9091:9091"
     depends_on:
-      - etcd
-      - minio
+      etcd:
+        condition: service_healthy
+      minio:
+        condition: service_healthy
     volumes:
       - milvus_data:/var/lib/milvus
     healthcheck:
       test: ["CMD", "curl", "-f", "http://localhost:9091/healthz"]
       interval: 30s
       timeout: 20s
-      retries: 5
+      retries: 10
+      start_period: 120s
 
   # ── Backend ─────────────────────────────────────────────────────────
   backend:
@@ -119,7 +122,8 @@ services:
       test: ["CMD", "curl", "-f", "http://localhost:8000/health"]
       interval: 30s
       timeout: 10s
-      retries: 3
+      retries: 10
+      start_period: 180s
 
   # ── Celery Worker ───────────────────────────────────────────────────
   celery:

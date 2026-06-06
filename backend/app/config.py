@@ -44,7 +44,7 @@ class Settings(BaseSettings):
     # ─── OpenAI ────────────────────────────────────────
     OPENAI_API_KEY: str
     OPENAI_MODEL: str = "gpt-4o"
-    OPENAI_MAX_TOKENS: int = 2000
+    OPENAI_MAX_TOKENS: int = 1500
     OPENAI_TEMPERATURE: float = 0.2
 
     # ─── Embeddings ────────────────────────────────────
@@ -53,8 +53,13 @@ class Settings(BaseSettings):
 
     # ─── Retrieval ─────────────────────────────────────
     TOP_K_LAWS: int = 5
-    TOP_K_CASES: int = 10
+    TOP_K_CASES: int = 7
     RERANKER_TOP_N: int = 5
+    MILVUS_SEARCH_EF: int = 64
+    COURTLISTENER_TIMEOUT: int = 8
+    COURTLISTENER_MAX_RESULTS: int = 3
+    USE_GLINER_PII: bool = False
+    ENABLE_SECTION_RESOLVE: bool = True
 
     # ─── Super Admin Seed ──────────────────────────────
     ADMIN_NAME: str = "Super Admin"
@@ -65,6 +70,9 @@ class Settings(BaseSettings):
     # ─── JWT Auth ──────────────────────────────────────
     JWT_ALGORITHM: str = "HS256"
     JWT_EXPIRE_MINUTES: int = 60 * 24
+
+    # ─── Integration API (optional webhook key) ────────
+    INTEGRATION_API_KEY: Optional[str] = None
 
     # ─── GLiNER PII ────────────────────────────────────
     GLINER_MODEL: str = "urchade/gliner_multi_pii-v1"
@@ -80,6 +88,19 @@ class Settings(BaseSettings):
     LANGCHAIN_API_KEY: str = ""
     LANGCHAIN_TRACING_V2: str = "false"
     LANGCHAIN_PROJECT: str = "immigraassist"
+
+    # ─── CourtListener ─────────────────────────────────
+    COURTLISTENER_API_TOKEN: str = ""
+
+    # ─── CORS & Security ───────────────────────────────
+    CORS_ORIGINS: str = "*"
+    RATE_LIMIT_ENABLED: bool = True
+
+    @property
+    def cors_origins_list(self) -> list[str]:
+        if self.CORS_ORIGINS.strip() == "*":
+            return ["*"]
+        return [o.strip() for o in self.CORS_ORIGINS.split(",") if o.strip()]
 
     class Config:
         env_file = ".env"

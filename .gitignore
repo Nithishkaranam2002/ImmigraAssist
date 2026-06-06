@@ -30,3 +30,4 @@ milvus_data/
 # IDE
 .vscode/
 .idea/
+node_modules/

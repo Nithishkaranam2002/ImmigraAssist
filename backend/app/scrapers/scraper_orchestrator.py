@@ -2,12 +2,15 @@ import os
 import uuid
 import aiofiles
 from dataclasses import dataclass
+from sqlalchemy import select
 from sqlalchemy.ext.asyncio import AsyncSession
+from app.db.models.user import User, UserRole
 from app.scrapers.uscis_policy_scraper import USCISPolicyScraper
 from app.scrapers.uscis_news_scraper import USCISNewsScraper
 from app.scrapers.bia_scraper import BIAScraper
 from app.scrapers.change_detector import ChangeDetector, ChangeType
 from app.db.models.scrape_record import ScrapeStatus
+from app.db.models.policy_alert import PolicyAlert
 from app.config import settings
 from app.utils.logger import logger
 
@@ -20,6 +23,7 @@ class OrchestratorResult:
     unchanged_pages: int
     failed_pages: int
     ingestion_triggered: int
+    retried_urls: int = 0
 
 
 class ScraperOrchestrator:
@@ -37,12 +41,27 @@ class ScraperOrchestrator:
     def __init__(self):
         self.change_detector = ChangeDetector()
 
+    async def _get_scraper_user_id(self, db: AsyncSession) -> str:
+        """Resolve a valid user ID for scraper-triggered ingestion."""
+        for query in (
+            select(User).where(User.role == UserRole.SUPER_ADMIN).limit(1),
+            select(User).where(User.email == settings.ADMIN_EMAIL).limit(1),
+            select(User).limit(1),
+        ):
+            result = await db.execute(query)
+            user = result.scalars().first()
+            if user:
+                return str(user.id)
+        raise RuntimeError("No user found for scraper ingestion")
+
     async def run_all(
         self,
         db: AsyncSession,
         scrape_policy: bool = True,
         scrape_news: bool = True,
         scrape_bia: bool = True,
+        retry_failed: bool = False,
+        force_policy_urls: list[str] | None = None,
     ) -> OrchestratorResult:
         logger.info("Scraper orchestrator started")
 
@@ -55,6 +74,8 @@ class ScraperOrchestrator:
             ingestion_triggered=0,
         )
 
+        scraper_user_id = await self._get_scraper_user_id(db)
+
         scrapers = []
         if scrape_policy:
             scrapers.append(USCISPolicyScraper())
@@ -65,21 +86,54 @@ class ScraperOrchestrator:
 
         for scraper in scrapers:
             try:
-                pages = await scraper.scrape_all()
-                result.total_scraped += len(pages)
+                if isinstance(scraper, USCISPolicyScraper):
+                    urls = force_policy_urls
+                    async for page in scraper.scrape_iter(urls=urls):
+                        result.total_scraped += 1
+                        page_result = await self._process_page(db, page, scraper_user_id)
+                        if page_result == "new":
+                            result.new_pages += 1
+                            result.ingestion_triggered += 1
+                        elif page_result == "changed":
+                            result.changed_pages += 1
+                            result.ingestion_triggered += 1
+                        elif page_result == "unchanged":
+                            result.unchanged_pages += 1
+                        elif page_result == "failed":
+                            result.failed_pages += 1
 
-                for page in pages:
-                    page_result = await self._process_page(db, page)
-                    if page_result == "new":
-                        result.new_pages += 1
-                        result.ingestion_triggered += 1
-                    elif page_result == "changed":
-                        result.changed_pages += 1
-                        result.ingestion_triggered += 1
-                    elif page_result == "unchanged":
-                        result.unchanged_pages += 1
-                    elif page_result == "failed":
-                        result.failed_pages += 1
+                    if scraper.failed_urls:
+                        result.failed_pages += len(scraper.failed_urls)
+                    if retry_failed and scraper.failed_urls:
+                        logger.info(f"Retrying {len(scraper.failed_urls)} failed policy URLs")
+                        failed = list(scraper.failed_urls)
+                        scraper.failed_urls = []
+                        async for page in scraper.scrape_iter(urls=failed):
+                            result.retried_urls += 1
+                            result.total_scraped += 1
+                            page_result = await self._process_page(db, page, scraper_user_id)
+                            if page_result in ("new", "changed"):
+                                result.ingestion_triggered += 1
+                                if page_result == "new":
+                                    result.new_pages += 1
+                                else:
+                                    result.changed_pages += 1
+                        result.failed_pages += len(scraper.failed_urls)
+                else:
+                    pages = await scraper.scrape_all()
+                    result.total_scraped += len(pages)
+                    for page in pages:
+                        page_result = await self._process_page(db, page, scraper_user_id)
+                        if page_result == "new":
+                            result.new_pages += 1
+                            result.ingestion_triggered += 1
+                        elif page_result == "changed":
+                            result.changed_pages += 1
+                            result.ingestion_triggered += 1
+                        elif page_result == "unchanged":
+                            result.unchanged_pages += 1
+                        elif page_result == "failed":
+                            result.failed_pages += 1
 
             except Exception as e:
                 logger.error(f"Scraper {scraper.__class__.__name__} failed: {e}")
@@ -120,6 +174,7 @@ class ScraperOrchestrator:
         self,
         db: AsyncSession,
         page,
+        scraper_user_id: str,
     ) -> str:
         """
         Process a single scraped page.
@@ -159,7 +214,7 @@ class ScraperOrchestrator:
             ingest_document_task.delay(
                 file_path=file_path,
                 filename=f"{page.source_type}_{self._url_to_filename(page.url)}.txt",
-                uploaded_by="7d090fe7-cde4-4cdf-b403-b802c14abff6",
+                uploaded_by=scraper_user_id,
             )
 
             # update scrape record
@@ -177,6 +232,17 @@ class ScraperOrchestrator:
                 title=page.title,
                 status=status,
             )
+
+            if page.source_type in ("uscis_news", "uscis_policy"):
+                summary = content[:300].replace("\n", " ").strip()
+                db.add(
+                    PolicyAlert(
+                        title=page.title[:500],
+                        url=page.url,
+                        source_type=page.source_type,
+                        summary=summary,
+                    )
+                )
 
             logger.info(
                 f"{status.value.upper()}: {page.title[:60]} "

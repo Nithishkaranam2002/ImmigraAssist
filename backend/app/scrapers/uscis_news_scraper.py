@@ -62,11 +62,11 @@ class USCISNewsScraper:
                 article_urls = list(set(article_urls))
                 logger.info(f"Total news articles found: {len(article_urls)}")
 
-                # limit to latest 30
-                article_urls = article_urls[:30]
+                # limit to latest 50 articles
+                article_urls = article_urls[:50]
 
-                # scrape articles in batches of 3
-                for i in range(0, len(article_urls), 3):
+                # scrape articles in batches of 2 (more reliable on small servers)
+                for i in range(0, len(article_urls), 2):
                     batch = article_urls[i:i + 3]
                     tasks = [self._scrape_article(context, url) for url in batch]
                     results = await asyncio.gather(*tasks, return_exceptions=True)
@@ -77,7 +77,7 @@ class USCISNewsScraper:
                         elif result:
                             pages.append(result)
 
-                    if i + 3 < len(article_urls):
+                    if i + 2 < len(article_urls):
                         await asyncio.sleep(2)
 
                 await browser.close()
@@ -97,7 +97,7 @@ class USCISNewsScraper:
                 "**/*.{png,jpg,jpeg,gif,svg,ico,woff,woff2}",
                 lambda route: route.abort()
             )
-            await page.goto(listing_url, wait_until="networkidle", timeout=30000)
+            await page.goto(listing_url, wait_until="domcontentloaded", timeout=60000)
 
             # wait for article links to load
             try:
@@ -139,7 +139,8 @@ class USCISNewsScraper:
                 lambda route: route.abort()
             )
 
-            await page.goto(url, wait_until="networkidle", timeout=30000)
+            await page.goto(url, wait_until="domcontentloaded", timeout=60000)
+            await page.wait_for_timeout(1500)
 
             # extract title
             title = await page.title()

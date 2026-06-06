@@ -3,10 +3,10 @@ import { useNavigate, Navigate, Link } from "react-router-dom"
 import { useForm } from "react-hook-form"
 import { zodResolver } from "@hookform/resolvers/zod"
 import { z } from "zod"
-import { Scale, Loader2 } from "lucide-react"
+import { Loader2 } from "lucide-react"
 import { Button } from "@/components/ui/button"
 import { Input } from "@/components/ui/input"
-import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card"
+import { AuthLayout } from "@/components/auth/AuthLayout"
 import { authService } from "@/services/authService"
 import { useAuthStore } from "@/store/authStore"
 
@@ -51,74 +51,50 @@ export function LoginPage() {
   }
 
   return (
-    <div className="min-h-screen bg-gray-50 flex items-center justify-center p-4">
-      <div className="w-full max-w-md">
-        <div className="flex items-center justify-center gap-3 mb-8">
-          <div className="w-10 h-10 bg-blue-600 rounded-xl flex items-center justify-center">
-            <Scale className="w-5 h-5 text-white" />
-          </div>
+    <AuthLayout
+      title="Welcome back"
+      subtitle="Sign in to access your legal research workspace"
+    >
+      <div className="bg-white rounded-xl border border-slate-200 shadow-sm p-6 sm:p-8">
+        <form onSubmit={handleSubmit(onSubmit)} className="space-y-5">
           <div>
-            <h1 className="text-xl font-bold text-gray-900">ImmigraAssist</h1>
-            <p className="text-xs text-gray-500">From Policies to Precedents, Instantly.</p>
+            <label className="text-sm font-medium text-slate-700 block mb-1.5">Email</label>
+            <Input type="email" placeholder="you@firm.com" {...register("email")} />
+            {errors.email && (
+              <p className="text-red-500 text-xs mt-1">{errors.email.message}</p>
+            )}
           </div>
-        </div>
 
-        <Card>
-          <CardHeader>
-            <CardTitle className="text-center">Sign in to your account</CardTitle>
-          </CardHeader>
-          <CardContent>
-            <form onSubmit={handleSubmit(onSubmit)} className="space-y-4">
-              <div>
-                <label className="text-sm font-medium text-gray-700 block mb-1">
-                  Email
-                </label>
-                <Input
-                  type="email"
-                  placeholder="you@firm.com"
-                  {...register("email")}
-                />
-                {errors.email && (
-                  <p className="text-red-500 text-xs mt-1">{errors.email.message}</p>
-                )}
-              </div>
+          <div>
+            <label className="text-sm font-medium text-slate-700 block mb-1.5">Password</label>
+            <Input type="password" placeholder="••••••••" {...register("password")} />
+            {errors.password && (
+              <p className="text-red-500 text-xs mt-1">{errors.password.message}</p>
+            )}
+          </div>
 
-              <div>
-                <label className="text-sm font-medium text-gray-700 block mb-1">
-                  Password
-                </label>
-                <Input
-                  type="password"
-                  placeholder="••••••••"
-                  {...register("password")}
-                />
-                {errors.password && (
-                  <p className="text-red-500 text-xs mt-1">{errors.password.message}</p>
-                )}
-              </div>
+          {error && (
+            <div className="text-red-600 text-sm text-center bg-red-50 border border-red-100 rounded-lg px-3 py-2">
+              {error}
+            </div>
+          )}
 
-              {error && (
-                <p className="text-red-500 text-sm text-center">{error}</p>
-              )}
+          <Button type="submit" className="w-full h-11" disabled={loading}>
+            {loading ? (
+              <><Loader2 className="w-4 h-4 animate-spin mr-2" /> Signing in...</>
+            ) : (
+              "Sign In"
+            )}
+          </Button>
 
-              <Button type="submit" className="w-full" disabled={loading}>
-                {loading ? (
-                  <><Loader2 className="w-4 h-4 animate-spin mr-2" /> Signing in...</>
-                ) : (
-                  "Sign In"
-                )}
-              </Button>
-
-              <p className="text-center text-sm text-gray-500">
-                Don't have an account?{" "}
-                <Link to="/signup" className="text-blue-600 hover:underline font-medium">
-                  Sign up
-                </Link>
-              </p>
-            </form>
-          </CardContent>
-        </Card>
+          <p className="text-center text-sm text-slate-500">
+            Don't have an account?{" "}
+            <Link to="/signup" className="text-brand-600 hover:text-brand-700 font-medium">
+              Create one
+            </Link>
+          </p>
+        </form>
       </div>
-    </div>
+    </AuthLayout>
   )
 }

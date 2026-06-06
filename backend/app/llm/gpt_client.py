@@ -1,3 +1,5 @@
+import asyncio
+import os
 import time
 from dataclasses import dataclass
 from openai import AsyncOpenAI
@@ -69,7 +71,7 @@ class GPTClient:
                     f"attempt {attempt}/{self.MAX_RETRIES}, "
                     f"retrying in {wait}s"
                 )
-                time.sleep(wait)
+                await asyncio.sleep(wait)
 
             except APITimeoutError as e:
                 last_error = e
@@ -118,12 +120,12 @@ class GPTClient:
             model=settings.OPENAI_MODEL,
             response_time_ms=response_time_ms,
         )
-        # flush langsmith traces
-        try:
-            from langsmith import Client
-            Client().flush()
-        except Exception:
-            pass
+        if os.getenv("LANGSMITH_API_KEY") or settings.LANGCHAIN_API_KEY:
+            try:
+                from langsmith import Client
+                Client().flush()
+            except Exception:
+                pass
         return result
 
     async def complete_streaming(self, prompt: BuiltPrompt):
