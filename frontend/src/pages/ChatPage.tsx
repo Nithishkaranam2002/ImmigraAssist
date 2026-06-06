@@ -27,7 +27,7 @@ import { matterService } from "@/services/matterService"
 import { platformService } from "@/services/platformService"
 import { useChatStore } from "@/store/chatStore"
 import { useAuthStore } from "@/store/authStore"
-import { cn } from "@/lib/utils"
+import { cn, getApiErrorMessage } from "@/lib/utils"
 import { toast } from "@/hooks/useToast"
 import { downloadMemo } from "@/lib/exportMemo"
 import { canCompare, canDocQA, canExport } from "@/lib/features"
@@ -148,10 +148,9 @@ export function ChatPage() {
         })
       }
     } catch (err: unknown) {
-      const detail =
-        (err as { response?: { data?: { detail?: string } } })?.response?.data?.detail ||
-        "Something went wrong. Please try again."
-      updateLastAssistant({ content: detail })
+      updateLastAssistant({
+        content: getApiErrorMessage(err, "Something went wrong. Please try again."),
+      })
     } finally {
       setLoading(false)
     }

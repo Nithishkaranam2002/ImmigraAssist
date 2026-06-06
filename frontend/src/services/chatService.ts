@@ -1,4 +1,5 @@
 import api from "./api"
+import { formatApiDetail } from "@/lib/utils"
 
 export interface QueryRequest {
   query: string
@@ -66,7 +67,7 @@ export const chatService = {
 
     if (!res.ok) {
       const err = await res.json().catch(() => ({ detail: "Request failed" }))
-      callbacks.onError(err.detail || "Request failed")
+      callbacks.onError(formatApiDetail(err.detail, "Request failed"))
       return
     }
 
