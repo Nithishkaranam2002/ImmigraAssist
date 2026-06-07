@@ -82,7 +82,13 @@ class PromptBuilder:
 Structure the ANSWER section as:
 ### Option A: [first pathway]
 ### Option B: [second pathway]
-### Comparison Table (eligibility, sponsor, timeline, risks)
+### Comparison Table
+Use a proper GitHub-flavored markdown table with EACH ROW ON ITS OWN LINE.
+Example format (follow exactly):
+| Criteria | Option A | Option B |
+| --- | --- | --- |
+| Eligibility | ... | ... |
+| Timeline | ... | ... |
 ### Recommendation Framework (factors for attorney analysis)
 Cover every material difference present in the reference material.
 """

@@ -92,6 +92,30 @@
     @apply my-4 border-slate-200;
   }
 
+  .prose-chat table {
+    @apply w-full my-4 text-xs border-collapse rounded-lg overflow-hidden border border-slate-200;
+  }
+
+  .prose-chat thead {
+    @apply bg-slate-100;
+  }
+
+  .prose-chat th {
+    @apply px-3 py-2.5 text-left font-semibold text-slate-800 border-b border-slate-200;
+  }
+
+  .prose-chat td {
+    @apply px-3 py-2.5 text-slate-700 border-b border-slate-100 align-top;
+  }
+
+  .prose-chat tbody tr:last-child td {
+    @apply border-b-0;
+  }
+
+  .prose-chat tbody tr:nth-child(even) {
+    @apply bg-slate-50/60;
+  }
+
   .gradient-hero {
     background: linear-gradient(135deg, #0f172a 0%, #1e3a5f 45%, #1d4ed8 100%);
   }

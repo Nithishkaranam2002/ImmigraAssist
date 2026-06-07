@@ -34,6 +34,34 @@ export function formatApiDetail(detail: unknown, fallback: string): string {
   return fallback
 }
 
+/**
+ * Fix GPT/streaming output where markdown table rows are glued on one line:
+ * "| A | B | |---|---| | C | D |" → separate lines for remark-gfm tables.
+ */
+export function normalizeMarkdownTables(content: string): string {
+  const lines = content.split("\n")
+  const out: string[] = []
+
+  for (const line of lines) {
+    const pipeCount = (line.match(/\|/g) || []).length
+    if (pipeCount >= 6 && /\|[^|\n]+\|[^|\n]+\|/.test(line)) {
+      const fixed = line
+        .replace(/\|\s*\|(?=[-:])/g, "|\n|")
+        .replace(/\|\s*\|(?=\s*[A-Za-z*])/g, "|\n|")
+      out.push(...fixed.split("\n"))
+    } else {
+      out.push(line)
+    }
+  }
+
+  return out.join("\n")
+}
+
+/** Prepare assistant markdown for ReactMarkdown + remark-gfm rendering. */
+export function formatChatMarkdown(content: string): string {
+  return normalizeMarkdownTables(content)
+}
+
 /** Always returns a valid UUID — works on HTTP where crypto.randomUUID() is blocked */
 export function generateId(): string {
   if (typeof crypto !== "undefined" && typeof crypto.randomUUID === "function") {

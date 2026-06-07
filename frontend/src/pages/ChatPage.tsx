@@ -16,6 +16,7 @@ import {
   ChevronDown,
 } from "lucide-react"
 import ReactMarkdown from "react-markdown"
+import remarkGfm from "remark-gfm"
 import { Button } from "@/components/ui/button"
 import { Textarea } from "@/components/ui/textarea"
 import { Badge } from "@/components/ui/badge"
@@ -27,7 +28,7 @@ import { matterService } from "@/services/matterService"
 import { platformService } from "@/services/platformService"
 import { useChatStore } from "@/store/chatStore"
 import { useAuthStore } from "@/store/authStore"
-import { cn, getApiErrorMessage } from "@/lib/utils"
+import { cn, formatChatMarkdown, getApiErrorMessage } from "@/lib/utils"
 import { toast } from "@/hooks/useToast"
 import { downloadMemo } from "@/lib/exportMemo"
 import { canCompare, canDocQA, canExport } from "@/lib/features"
@@ -355,8 +356,10 @@ export function ChatPage() {
                           </Badge>
                         )}
                       </div>
-                      <div className="prose-chat">
-                        <ReactMarkdown>{cleanContent(message.content)}</ReactMarkdown>
+                      <div className="prose-chat overflow-x-auto">
+                        <ReactMarkdown remarkPlugins={[remarkGfm]}>
+                          {formatChatMarkdown(cleanContent(message.content))}
+                        </ReactMarkdown>
                       </div>
                       {!message.isStreaming &&
                         (message.cited_laws?.length ||
