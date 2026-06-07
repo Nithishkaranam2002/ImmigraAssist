@@ -117,7 +117,11 @@ Prioritize critique of the client document over retrieved policy summaries.
 ## FOLLOW-UP MODE
 The user's question refers to the immediately preceding exchange in PREVIOUS CONVERSATION.
 Answer specifically about THAT topic — not a generic catalog of unrelated immigration forms or benefits.
-Name only the forms, evidence, and steps relevant to the prior question.
+Do NOT repeat eligibility criteria already covered in the prior answer unless the user asks again.
+For forms questions, structure the ANSWER as:
+### Required USCIS Forms (form number, category code if applicable, purpose)
+### Supporting Evidence Documents
+Name only the forms, evidence, and filing steps relevant to the prior question.
 """
 
     def build(
@@ -142,6 +146,8 @@ Name only the forms, evidence, and steps relevant to the prior question.
             system += self.COMPARE_ADDENDUM
         elif query_mode == "doc_review":
             system += self.DOC_REVIEW_ADDENDUM
+        elif is_follow_up:
+            system += self.FOLLOW_UP_ADDENDUM
 
         return BuiltPrompt(
             system_message=system,
@@ -162,7 +168,9 @@ Name only the forms, evidence, and steps relevant to the prior question.
         if is_follow_up and re.search(r"\b(form|file|filing|document|evidence)\b", q):
             hints.append(
                 "Follow-up forms query — list ONLY forms and supporting documents for the "
-                "benefit discussed in the prior question (e.g. H-4 EAD → Form I-765, category (c)(26))."
+                "benefit discussed in the prior question. Do not repeat prior eligibility rules. "
+                "For H-4 EAD: Form I-765 with category (c)(26), plus I-140/AC21 evidence, "
+                "marriage certificate, and Form I-94."
             )
 
         if re.search(r"\b(cap|lottery|registration)\b", q) and (
@@ -258,8 +266,9 @@ Name only the forms, evidence, and steps relevant to the prior question.
         elif is_follow_up:
             parts.append(
                 f"## QUESTION\n{query}\n\n"
-                f"Answer this follow-up about the prior exchange. Stay on the same topic; "
-                f"do not list unrelated forms or benefits. Use the required response format."
+                f"Answer this follow-up about the prior exchange only. Stay on the same topic; "
+                f"do not list unrelated forms or repeat eligibility from the prior answer. "
+                f"For forms questions, lead with required USCIS form numbers and category codes."
             )
         else:
             parts.append(
