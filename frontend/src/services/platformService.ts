@@ -55,8 +55,10 @@ export interface EvalMetrics {
 }
 
 export const platformService = {
-  async getHistory(limit = 30): Promise<HistoryItem[]> {
-    const res = await api.get<HistoryItem[]>(`/platform/history?limit=${limit}`)
+  async getHistory(limit = 30, matterId?: string): Promise<HistoryItem[]> {
+    const params = new URLSearchParams({ limit: String(limit) })
+    if (matterId) params.set("matter_id", matterId)
+    const res = await api.get<HistoryItem[]>(`/platform/history?${params}`)
     return res.data
   },
 

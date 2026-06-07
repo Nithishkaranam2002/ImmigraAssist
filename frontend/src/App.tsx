@@ -13,6 +13,7 @@ import { DocumentsPage } from "@/pages/DocumentsPage"
 import { AuditPage } from "@/pages/AuditPage"
 import { UsersPage } from "@/pages/UsersPage"
 import { MattersPage } from "@/pages/MattersPage"
+import { MatterDetailPage } from "@/pages/MatterDetailPage"
 import { ResearchHubPage } from "@/pages/ResearchHubPage"
 import { ResearchVisaPage } from "@/pages/ResearchVisaPage"
 import { ReviewQueuePage } from "@/pages/ReviewQueuePage"
@@ -40,6 +41,7 @@ export default function App() {
             <Route element={<AppLayout />}>
               <Route path="/chat" element={<ChatPage />} />
               <Route path="/matters" element={<MattersPage />} />
+              <Route path="/matters/:matterId" element={<MatterDetailPage />} />
               <Route path="/research" element={<ResearchHubPage />} />
               <Route path="/research/:visaType" element={<ResearchVisaPage />} />
               <Route element={<ProtectedRoute minRole="attorney" />}>

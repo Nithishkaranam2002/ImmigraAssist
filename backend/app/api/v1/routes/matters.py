@@ -52,6 +52,30 @@ async def list_matters(
     ]
 
 
+@router.get("/{matter_id}")
+async def get_matter(
+    matter_id: UUID,
+    db: AsyncSession = Depends(get_db),
+    current_user: User = Depends(get_current_user),
+):
+    result = await db.execute(
+        select(Matter).where(Matter.id == matter_id, Matter.user_id == current_user.id)
+    )
+    matter = result.scalars().first()
+    if not matter:
+        raise HTTPException(404, "Matter not found")
+    return {
+        "id": str(matter.id),
+        "title": matter.title,
+        "client_name": matter.client_name,
+        "visa_type": matter.visa_type,
+        "description": matter.description,
+        "status": matter.status,
+        "created_at": str(matter.created_at),
+        "updated_at": str(matter.updated_at) if matter.updated_at else None,
+    }
+
+
 @router.post("/")
 async def create_matter(
     body: MatterCreate,

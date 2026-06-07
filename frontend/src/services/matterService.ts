@@ -16,6 +16,11 @@ export const matterService = {
     return res.data
   },
 
+  async get(id: string): Promise<Matter> {
+    const res = await api.get<Matter>(`/matters/${id}`)
+    return res.data
+  },
+
   async create(data: {
     title: string
     client_name?: string

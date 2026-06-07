@@ -109,15 +109,19 @@ async def list_research_hubs():
 @router.get("/history")
 async def query_history(
     limit: int = 30,
+    matter_id: Optional[UUID] = None,
     db: AsyncSession = Depends(get_db),
     current_user: User = Depends(get_current_user),
 ):
-    result = await db.execute(
+    stmt = (
         select(AuditLog, ChatQueryMeta)
         .outerjoin(ChatQueryMeta, ChatQueryMeta.audit_log_id == AuditLog.id)
         .where(AuditLog.user_id == current_user.id)
-        .order_by(AuditLog.created_at.desc())
-        .limit(limit)
+    )
+    if matter_id:
+        stmt = stmt.where(ChatQueryMeta.matter_id == matter_id)
+    result = await db.execute(
+        stmt.order_by(AuditLog.created_at.desc()).limit(limit)
     )
     rows = result.all()
     return [
