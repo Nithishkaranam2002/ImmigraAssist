@@ -54,6 +54,12 @@ def _install_dependency_stubs():
     metadata_filter_module.FilterContext = object
     sys.modules["app.retrieval.metadata_filter"] = metadata_filter_module
 
+    langsmith_module = types.ModuleType("langsmith")
+    langsmith_module.traceable = lambda func=None, **_kwargs: (
+        func if func is not None else lambda wrapped: wrapped
+    )
+    sys.modules["langsmith"] = langsmith_module
+
     langchain_openai_module = types.ModuleType("langchain_openai")
     langchain_openai_module.OpenAIEmbeddings = object
     sys.modules["langchain_openai"] = langchain_openai_module
