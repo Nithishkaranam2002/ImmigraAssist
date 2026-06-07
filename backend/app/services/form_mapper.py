@@ -1,6 +1,7 @@
 VISA_FORMS: dict[str, list[dict[str, str]]] = {
     "h1b": [
-        {"form": "I-129", "name": "Petition for Nonimmigrant Worker"},
+        {"form": "I-129", "name": "Petition for Nonimmigrant Worker (cap-subject)"},
+        {"form": "G-28", "name": "Notice of Entry of Appearance as Attorney"},
         {"form": "I-797", "name": "Notice of Action"},
     ],
     "h4": [

@@ -27,6 +27,7 @@ from app.llm.gpt_client import GPTClient, GPTResponse
 from app.llm.response_parser import ResponseParser
 from app.scrapers.courtlistener_scraper import CourtListenerScraper
 from app.services.confidence import compute_confidence
+from app.services.answer_quality import assess_and_enhance
 from app.services.form_mapper import get_forms_for_visa
 from app.services.query_cache import get_cached_response, set_cached_response
 from app.config import settings
@@ -342,6 +343,16 @@ async def _finalize_response(
     from_cache: bool,
 ) -> dict:
     parsed = response_parser.parse(gpt_response)
+    quality = assess_and_enhance(
+        parsed=parsed,
+        query=raw_query,
+        visa_type=filter_context.visa_type,
+        law_count=len(law_chunks),
+        case_count=len(case_chunks),
+        court_count=len(court_cases),
+    )
+    parsed = quality.parsed
+
     sanitized = output_sanitizer.sanitize(raw_answer=parsed.answer, context=context)
 
     confidence = compute_confidence(
@@ -349,13 +360,16 @@ async def _finalize_response(
         case_count=len(case_chunks),
         court_count=len(court_cases),
         is_well_formed=parsed.is_well_formed,
+        completeness_score=quality.completeness_score,
+        gap_count=len(quality.gaps),
     )
 
-    form_list = parsed.related_forms or []
-    if not form_list and filter_context.visa_type:
-        form_list = [
-            f"{f['form']} — {f['name']}" for f in get_forms_for_visa(filter_context.visa_type)
-        ]
+    form_list = list(parsed.related_forms or [])
+    if filter_context.visa_type:
+        for f in get_forms_for_visa(filter_context.visa_type):
+            entry = f"{f['form']} — {f['name']}"
+            if entry not in form_list:
+                form_list.append(entry)
 
     response_time_ms = int((time.time() - start_time) * 1000)
 

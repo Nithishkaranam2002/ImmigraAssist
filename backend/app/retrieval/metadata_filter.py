@@ -51,6 +51,8 @@ class MetadataFilter:
         then fetches matching document IDs from PostgreSQL.
         """
         visa_type = self._detect_visa_type(query)
+        if not visa_type:
+            visa_type = self._infer_visa_from_topic(query)
         year_min, year_max = self._detect_year_range(query)
 
         logger.info(
@@ -94,6 +96,17 @@ class MetadataFilter:
         for visa_type, pattern in VISA_PATTERNS.items():
             if pattern.search(query):
                 return visa_type
+        return None
+
+    def _infer_visa_from_topic(self, query: str) -> Optional[str]:
+        """Map topic keywords to visa when explicit code is omitted."""
+        q = query.lower()
+        if re.search(r"\b(cap|lottery|premium\s+processing|lca)\b", q):
+            return "h1b"
+        if re.search(r"\b(opt\b|stem\s+opt|curricular\s+practical)", q):
+            return "f1"
+        if re.search(r"\bperm\b|labor\s+certification", q):
+            return "eb2"
         return None
 
     def _detect_year_range(

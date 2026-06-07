@@ -82,9 +82,11 @@ class ResponseParser:
         risks_raw = self._extract_section(self.RISKS_PATTERN, content)
         forms_raw = self._extract_section(self.FORMS_PATTERN, content)
 
-        is_well_formed = bool(answer)
+        is_well_formed = bool(answer) and bool(
+            cited_laws_raw or cited_cases_raw or notes_raw or next_steps_raw or risks_raw
+        )
 
-        if not is_well_formed:
+        if not answer:
             logger.warning(
                 "GPT response not well-formed — "
                 "missing expected sections, using full content as answer"

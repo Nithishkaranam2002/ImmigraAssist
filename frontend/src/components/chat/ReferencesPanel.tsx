@@ -65,6 +65,21 @@ export function ReferencesPanel({ message, isLoading, className }: ReferencesPan
           </div>
         ) : (
           <>
+            {message.important_notes && message.important_notes.length > 0 && (
+              <Section icon={AlertTriangle} title="Important Notes" color="text-amber-500">
+                <div className="space-y-2">
+                  {message.important_notes.map((note, i) => (
+                    <div
+                      key={i}
+                      className="p-3 bg-amber-50 rounded-lg border border-amber-200 text-xs text-amber-900 leading-relaxed"
+                    >
+                      {note}
+                    </div>
+                  ))}
+                </div>
+              </Section>
+            )}
+
             {message.next_steps && message.next_steps.length > 0 && (
               <Section icon={ListChecks} title="Next Steps" color="text-brand-500">
                 <div className="space-y-2">
@@ -95,21 +110,6 @@ export function ReferencesPanel({ message, isLoading, className }: ReferencesPan
                   {message.related_forms.map((form, i) => (
                     <div key={i} className="p-3 bg-emerald-50 rounded-lg border border-emerald-100 text-xs text-emerald-900 font-medium">
                       {form}
-                    </div>
-                  ))}
-                </div>
-              </Section>
-            )}
-
-            {message.important_notes && message.important_notes.length > 0 && (
-              <Section icon={AlertTriangle} title="Important Notes" color="text-amber-500">
-                <div className="space-y-2">
-                  {message.important_notes.map((note, i) => (
-                    <div
-                      key={i}
-                      className="p-3 bg-amber-50 rounded-lg border border-amber-200 text-xs text-amber-900 leading-relaxed"
-                    >
-                      {note}
                     </div>
                   ))}
                 </div>

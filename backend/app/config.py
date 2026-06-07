@@ -44,7 +44,7 @@ class Settings(BaseSettings):
     # ─── OpenAI ────────────────────────────────────────
     OPENAI_API_KEY: str
     OPENAI_MODEL: str = "gpt-4o"
-    OPENAI_MAX_TOKENS: int = 1500
+    OPENAI_MAX_TOKENS: int = 2800
     OPENAI_TEMPERATURE: float = 0.2
 
     # ─── Embeddings ────────────────────────────────────
@@ -52,9 +52,9 @@ class Settings(BaseSettings):
     EMBEDDING_DIMENSION: int = 1536
 
     # ─── Retrieval ─────────────────────────────────────
-    TOP_K_LAWS: int = 5
-    TOP_K_CASES: int = 7
-    RERANKER_TOP_N: int = 5
+    TOP_K_LAWS: int = 8
+    TOP_K_CASES: int = 8
+    RERANKER_TOP_N: int = 6
     MILVUS_SEARCH_EF: int = 64
     COURTLISTENER_TIMEOUT: int = 8
     COURTLISTENER_MAX_RESULTS: int = 3

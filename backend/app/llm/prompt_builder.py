@@ -1,3 +1,4 @@
+import re
 from dataclasses import dataclass
 from app.retrieval.context_builder import BuiltContext
 
@@ -9,69 +10,81 @@ class BuiltPrompt:
     total_chars: int
 
 
-SYSTEM_PROMPT = """You are ImmigraAssist, an expert AI legal research assistant specialized exclusively in US immigration law.
+SYSTEM_PROMPT = """You are ImmigraAssist, a production-grade AI legal research assistant for US immigration law firms.
 
-You assist immigration attorneys and legal associates at law firms by answering questions based on:
-1. USCIS policies and regulations (provided as law references)
-2. Past immigration case precedents (provided as case references)
+You assist immigration attorneys and legal associates by producing attorney-ready research memos based ONLY on:
+1. USCIS policies and regulations (law references in context)
+2. Immigration case precedents (case references in context)
 
-## YOUR ROLE
-- Provide accurate, well-structured legal research summaries
-- Always cite the specific law section/clause and case references provided to you
-- Never fabricate laws, case outcomes, or policy details
-- Stay strictly within US immigration law scope
-- Acknowledge when information is limited or unclear
+## COMPLETENESS STANDARD (CRITICAL)
+Your answers must be comprehensive and must NOT omit material facts present in the reference material.
+
+For every response, ensure the ANSWER section covers ALL of the following that apply:
+- **Numerical limits** — caps, quotas, fees (exact figures when in context)
+- **Eligibility** — every stated requirement; use "AND" / "OR" logic clearly
+- **Process** — numbered steps in chronological order (register → select → file → adjudicate → start)
+- **Deadlines & windows** — registration periods, filing windows, validity periods
+- **Forms** — form numbers, edition dates if stated, and purpose
+- **Exceptions & exemptions** — cap-exempt employers, dependents, advanced-degree cap, etc.
+- **Recent rule changes** — note effective dates when context mentions new rules
+- **Practical implications** — what the attorney/employer must do next
+
+If the reference material contains a fact, you MUST include it. Never summarize away numbers, dates, or fees.
+If information is absent from context, explicitly state: "The retrieved sources do not specify [X]."
 
 ## RESPONSE FORMAT
-Structure every response exactly like this:
+Structure every response EXACTLY like this:
 
 **ANSWER:**
-[Your comprehensive answer here — clear, factual, well organized]
+Write a thorough research memo. Use markdown subheadings (###) for:
+- Overview
+- Key Requirements / Rules (bullet lists for criteria)
+- Process & Timeline (numbered steps)
+- Exceptions (if any)
 
 **CITED LAWS:**
-[List each law/policy section you referenced, with section and clause numbers]
+- [Law/policy reference with section/clause from context]
 
 **CITED CASES:**
-[List each case reference you used, with relevance explanation]
+- [Case reference and why it matters]
 
 **IMPORTANT NOTES:**
-[Any caveats, date-sensitive information, or areas where the attorney should verify manually]
+- [Date-sensitive caveats, policy changes, verification items]
+- [Gaps in retrieved sources, if any]
 
 **NEXT STEPS:**
-[3-5 actionable next steps for the attorney]
+- [3-5 specific, actionable steps for the attorney — name forms, portals, and deadlines]
+- [NO vague items like "monitor policy" without specifying what to monitor]
 
 **RISKS & CONSIDERATIONS:**
-[Key risks, deadlines, or edge cases to watch]
+- [Denial risks, deadline misses, inconsistent registrations, filing errors]
 
 **RELATED FORMS:**
-[Relevant USCIS forms (e.g. I-129, I-765) with brief purpose]
+- [Form number — purpose (one per line)]
 
 ## RULES
-- Only use information from the provided context
-- If the context does not contain enough information, say so clearly
-- Never give a definitive legal conclusion — frame as research findings
-- Use plain English where possible — avoid unnecessary legalese
-- If a case is from an older year, note that the policy may have changed
-- Always note when a law section has been updated or superseded"""
+- Use ONLY information from the provided reference material for legal facts
+- Never fabricate statutes, case outcomes, fees, or dates
+- Frame as research findings, not definitive legal advice
+- Cite [LAW N] / [CASE N] labels when referencing specific retrieved passages
+- Do NOT include URLs in the ANSWER — citations appear in structured sections
+- Prefer precision over brevity — attorneys need complete memos, not summaries"""
 
 
 class PromptBuilder:
     """
     Assembles the final GPT prompt from context and query.
-
-    Two parts:
-    1. System message — tells GPT its role and rules (fixed)
-    2. User message — context + query (dynamic per request)
     """
 
     COMPARE_ADDENDUM = """
 
 ## COMPARE MODE
-The user wants a side-by-side comparison. Structure the ANSWER section as:
+Structure the ANSWER section as:
 ### Option A: [first pathway]
 ### Option B: [second pathway]
-### Key Differences
-### Recommendation Framework
+### Comparison Table (eligibility, sponsor, timeline, risks)
+### Recommendation Framework (factors for attorney analysis)
+Cover every material difference present in the reference material.
 """
 
     def build(
@@ -81,10 +94,6 @@ The user wants a side-by-side comparison. Structure the ANSWER section as:
         visa_type: str | None = None,
         query_mode: str = "standard",
     ) -> BuiltPrompt:
-        """
-        Main entry point.
-        Returns a BuiltPrompt with system and user messages.
-        """
         user_message = self._build_user_message(query, context, visa_type)
         system = SYSTEM_PROMPT
         if query_mode == "compare":
@@ -96,6 +105,50 @@ The user wants a side-by-side comparison. Structure the ANSWER section as:
             total_chars=len(system) + len(user_message),
         )
 
+    def _topic_guidance(self, query: str, visa_type: str | None) -> str:
+        """Query-specific completeness checklist for the model."""
+        q = query.lower()
+        hints: list[str] = []
+
+        if re.search(r"\b(cap|lottery|registration)\b", q) and (
+            re.search(r"\bh[-\s]?1b\b", q) or visa_type == "h1b"
+        ):
+            hints.append(
+                "H-1B cap query — MUST include if in context: 65,000 regular cap, "
+                "20,000 master's/advanced degree exemption, $215 registration fee, "
+                "registration dates, weighted/wage-based selection (FY 2027+), "
+                "90-day petition filing window, October 1 employment start."
+            )
+
+        if re.search(r"\b(ead|work\s+auth|employment\s+authorization)\b", q):
+            hints.append(
+                "EAD query — MUST include: eligibility triggers, Form I-765 category code, "
+                "required evidence, filing while in status, and processing considerations."
+            )
+
+        if re.search(r"\b(eligib|require|qualif)\b", q):
+            hints.append(
+                "Eligibility query — list EVERY criterion from context; "
+                "distinguish mandatory vs. discretionary factors."
+            )
+
+        if re.search(r"\b(compare|difference|vs\.?|versus)\b", q):
+            hints.append(
+                "Comparison query — cover eligibility, process, timeline, sponsor requirements, "
+                "and key risks for EACH option."
+            )
+
+        if re.search(r"\b(form|file|filing|petition)\b", q):
+            hints.append(
+                "Filing query — include form numbers, editions if stated, fees, "
+                "and supporting evidence requirements."
+            )
+
+        if not hints:
+            return ""
+
+        return "## COMPLETENESS CHECKLIST FOR THIS QUERY\n" + "\n".join(f"- {h}" for h in hints)
+
     def _build_user_message(
         self,
         query: str,
@@ -105,38 +158,36 @@ The user wants a side-by-side comparison. Structure the ANSWER section as:
         parts = []
 
         if visa_type:
-            parts.append(
-                f"## QUERY CONTEXT\n"
-                f"Visa Category: {visa_type.upper()}\n"
-            )
+            parts.append(f"## QUERY CONTEXT\nVisa Category: {visa_type.upper().replace('_', '-')}\n")
 
-        # strip court decisions section — those show in UI not in GPT answer
+        topic_guidance = self._topic_guidance(query, visa_type)
+        if topic_guidance:
+            parts.append(topic_guidance)
+
         context_text = context.context_text
         if "## RELEVANT COURT DECISIONS" in context_text:
             context_text = context_text.split("## RELEVANT COURT DECISIONS")[0].strip()
 
+        law_refs = len(context.law_references)
+        case_refs = len(context.case_references)
+
         if context_text:
             parts.append(
-                f"## REFERENCE MATERIAL\n"
-                f"The following laws and cases were retrieved "
-                f"as relevant to this query:\n\n"
+                f"## REFERENCE MATERIAL ({law_refs} law sources, {case_refs} case sources)\n"
+                f"Use ALL relevant facts from these sources. Do not omit numbers, dates, or fees.\n\n"
                 f"{context_text}"
             )
         else:
             parts.append(
                 "## REFERENCE MATERIAL\n"
-                "No specific reference material was found for this query. "
-                "Answer based on your general immigration law knowledge "
-                "and clearly state that no specific references were retrieved."
+                "No specific reference material was retrieved. "
+                "State clearly that sources are limited and avoid speculating on specifics."
             )
 
         parts.append(
-            f"## QUESTION\n"
-            f"{query}\n\n"
-            f"Please provide a comprehensive answer following the required format. "
-            f"Cite specific law sections from the reference material above. "
-            f"Do NOT include URLs or court case links in your answer — "
-            f"case references will be shown separately in the UI."
+            f"## QUESTION\n{query}\n\n"
+            f"Produce a complete attorney-ready research memo following the required format. "
+            f"Include every material fact from the reference material above."
         )
 
         return "\n\n".join(parts)

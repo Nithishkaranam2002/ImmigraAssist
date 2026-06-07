@@ -8,7 +8,7 @@ from app.db.models.document import Document
 from app.utils.logger import logger
 
 
-MAX_CONTEXT_TOKENS = 6000
+MAX_CONTEXT_TOKENS = 9000
 AVG_CHARS_PER_TOKEN = 4
 
 VOLUME_TOPICS = {

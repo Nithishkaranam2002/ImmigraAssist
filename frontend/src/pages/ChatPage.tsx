@@ -358,6 +358,45 @@ export function ChatPage() {
                       <div className="prose-chat">
                         <ReactMarkdown>{cleanContent(message.content)}</ReactMarkdown>
                       </div>
+                      {!message.isStreaming &&
+                        (message.cited_laws?.length ||
+                          message.cited_cases?.length ||
+                          message.court_cases?.length) ? (
+                        <p className="mt-4 text-xs text-slate-500 border-t border-slate-100 pt-3">
+                          Based on{" "}
+                          {[
+                            message.cited_laws?.length
+                              ? `${message.cited_laws.length} policy source${message.cited_laws.length !== 1 ? "s" : ""}`
+                              : null,
+                            message.cited_cases?.length
+                              ? `${message.cited_cases.length} case precedent${message.cited_cases.length !== 1 ? "s" : ""}`
+                              : null,
+                            message.court_cases?.length
+                              ? `${message.court_cases.length} court decision${message.court_cases.length !== 1 ? "s" : ""}`
+                              : null,
+                          ]
+                            .filter(Boolean)
+                            .join(", ")}
+                          . See References panel for citations, forms, and next steps.
+                        </p>
+                      ) : null}
+                      {!message.isStreaming &&
+                      message.important_notes &&
+                      message.important_notes.length > 0 ? (
+                        <div className="mt-4 rounded-lg border border-amber-200 bg-amber-50/80 p-3">
+                          <p className="text-xs font-semibold text-amber-900 mb-2">
+                            Important notes &amp; verification items
+                          </p>
+                          <ul className="space-y-1.5">
+                            {message.important_notes.slice(0, 5).map((note, i) => (
+                              <li key={i} className="text-xs text-amber-900 leading-relaxed flex gap-2">
+                                <span className="text-amber-500 shrink-0">•</span>
+                                <span>{note}</span>
+                              </li>
+                            ))}
+                          </ul>
+                        </div>
+                      ) : null}
                     </div>
                     {message.audit_log_id && !message.isStreaming && (
                       <div className="px-5 py-3 border-t border-slate-100 flex items-center justify-between bg-slate-50/50">
