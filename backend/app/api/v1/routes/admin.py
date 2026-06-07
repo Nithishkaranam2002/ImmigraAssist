@@ -140,8 +140,8 @@ async def list_audit_logs(
     ]
 
 TARGETS = {
-    "uscis_policy": {"documents": 66, "vectors": 657},
-    "uscis_news": {"documents": 20, "vectors": 80},
+    "uscis_policy": {"documents": 180, "vectors": 1800},
+    "uscis_news": {"documents": 80, "vectors": 320},
     "bia": {"documents": 150, "vectors": 3000},
     "aao": {"documents": 94, "vectors": 2860},
 }
@@ -153,7 +153,8 @@ async def data_completeness(
     current_user: User = Depends(require_role(UserRole.ADMIN)),
 ):
     """Compare indexed data against target corpus sizes."""
-    from app.scrapers.policy_urls import DIRECT_CHAPTER_URLS, POLICY_CHAPTER_TARGET
+    from app.scrapers.uscis_policy_scraper import ALL_FALLBACK_CHAPTER_URLS
+    from app.scrapers.policy_chapter_manifest import POLICY_CHAPTER_TARGET
 
     doc_by_type = await db.execute(
         select(Document.doc_type, func.count(Document.id), func.sum(Document.total_chunks))
@@ -177,27 +178,7 @@ async def data_completeness(
         select(func.count(ScrapeRecord.id)).where(ScrapeRecord.source_type == "uscis_policy")
     )
     policy_scraped = scraped_policy_urls.scalar() or 0
-    policy_target = max(POLICY_CHAPTER_TARGET, len(DIRECT_CHAPTER_URLS))
-
-    policy_success = await db.execute(
-        select(func.count(ScrapeRecord.id)).where(
-            ScrapeRecord.source_type == "uscis_policy",
-            ScrapeRecord.status.in_([
-                ScrapeStatus.NEW,
-                ScrapeStatus.CHANGED,
-                ScrapeStatus.UNCHANGED,
-            ]),
-        )
-    )
-    policy_success_count = policy_success.scalar() or 0
-
-    policy_failed = await db.execute(
-        select(func.count(ScrapeRecord.id)).where(
-            ScrapeRecord.source_type == "uscis_policy",
-            ScrapeRecord.status == ScrapeStatus.FAILED,
-        )
-    )
-    policy_failed_count = policy_failed.scalar() or 0
+    policy_target = max(len(ALL_FALLBACK_CHAPTER_URLS), POLICY_CHAPTER_TARGET)
 
     milvus = {}
     try:
@@ -214,27 +195,25 @@ async def data_completeness(
 
     return {
         "documents": {
-            "law": {"count": law_docs, "target": 86, "chunks": law_chunks, "chunk_target": 737},
+            "law": {"count": law_docs, "target": 260, "chunks": law_chunks, "chunk_target": 2120},
             "case": {"count": case_docs, "target": 244, "chunks": case_chunks, "chunk_target": 5860},
-            "total": {"count": law_docs + case_docs, "target": 330},
+            "total": {"count": law_docs + case_docs, "target": 504},
         },
         "milvus_vectors": {
-            "laws": {"count": milvus.get("laws", 0), "target": 657},
+            "laws": {"count": milvus.get("laws", 0), "target": 2120},
             "cases": {"count": milvus.get("cases", 0), "target": 5860},
-            "total": {"count": milvus.get("laws", 0) + milvus.get("cases", 0), "target": 6597},
+            "total": {"count": milvus.get("laws", 0) + milvus.get("cases", 0), "target": 7980},
         },
         "scrape_records": scrape_stats,
         "policy_chapters": {
             "scraped": policy_scraped,
-            "ingested_success": policy_success_count,
-            "failed": policy_failed_count,
-            "fallback_urls": len(DIRECT_CHAPTER_URLS),
             "target": policy_target,
-            "missing_estimate": max(0, policy_target - policy_success_count),
+            "missing": max(0, policy_target - policy_scraped),
         },
         "completeness_pct": round(
-            (milvus.get("laws", 0) + milvus.get("cases", 0)) / 6597 * 100, 1
+            (milvus.get("laws", 0) + milvus.get("cases", 0)) / 7980 * 100, 1
         ) if isinstance(milvus.get("laws"), int) else 0,
+        "manifest_chapters": len(ALL_FALLBACK_CHAPTER_URLS),
     }
 
 

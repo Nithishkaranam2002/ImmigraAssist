@@ -77,20 +77,28 @@ def run_scrapers_task(
 def run_missing_policy_task(self):
     """Scrape only policy chapter URLs not yet recorded."""
     from sqlalchemy import select
-    from app.scrapers.uscis_policy_scraper import USCISPolicyScraper
-    from app.scrapers.policy_urls import DIRECT_CHAPTER_URLS
-    from app.db.models.scrape_record import ScrapeRecord
+    from app.scrapers.uscis_policy_scraper import USCISPolicyScraper, ALL_FALLBACK_CHAPTER_URLS
+    from app.db.models.scrape_record import ScrapeRecord, ScrapeStatus
 
     async def _run():
         async with AsyncSessionLocal() as db:
             scraper = USCISPolicyScraper()
             discovered = await scraper._discover_chapter_urls()
-            all_urls = set(discovered) | set(DIRECT_CHAPTER_URLS)
+            all_urls = set(discovered) | set(ALL_FALLBACK_CHAPTER_URLS)
 
-            result = await db.execute(select(ScrapeRecord.url))
-            existing = {row[0] for row in result.fetchall()}
+            result = await db.execute(
+                select(ScrapeRecord.url, ScrapeRecord.status).where(
+                    ScrapeRecord.source_type == "uscis_policy",
+                    ScrapeRecord.status.in_([
+                        ScrapeStatus.NEW,
+                        ScrapeStatus.CHANGED,
+                        ScrapeStatus.UNCHANGED,
+                    ]),
+                )
+            )
+            existing_ok = {row[0] for row in result.fetchall()}
 
-            missing = sorted(all_urls - existing)
+            missing = sorted(all_urls - existing_ok)
             logger.info(f"Missing policy URLs to scrape: {len(missing)}")
 
             if not missing:
@@ -116,3 +124,24 @@ def run_missing_policy_task(self):
     return self.loop.run_until_complete(_run())
 
 
+# add to beat schedule in celery_app.py
+SCRAPER_BEAT_SCHEDULE = {
+    "scrape-news-daily": {
+        "task": "app.tasks.scraper_task.run_scrapers_task",
+        "schedule": 86400.0,  # every 24 hours
+        "kwargs": {
+            "scrape_policy": False,
+            "scrape_news": True,
+            "scrape_bia": False,
+        },
+    },
+    "scrape-full-weekly": {
+        "task": "app.tasks.scraper_task.run_scrapers_task",
+        "schedule": 604800.0,  # every 7 days
+        "kwargs": {
+            "scrape_policy": True,
+            "scrape_news": True,
+            "scrape_bia": True,
+        },
+    },
+}

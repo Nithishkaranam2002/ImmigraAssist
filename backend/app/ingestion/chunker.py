@@ -35,14 +35,6 @@ class LawChunker:
         re.IGNORECASE
     )
 
-    # USCIS policy manual: lettered subsections (A), (B), INA/CFR cites
-    USCIS_SUBSECTION_PATTERN = re.compile(
-        r"(?=\n\([A-Z]\)\s|\nINA\s*§|\n8\s+CFR\s+)",
-        re.IGNORECASE,
-    )
-
-    NUMBERED_LIST_PATTERN = re.compile(r"(?=\n\d+\.\s+[A-Z])")
-
     # current heading tracker
     CLAUSE_HEADER = re.compile(
         r"^(Clause\s+\d+[\.\d]*|§\s*\d+[\.\d]*)(.*?)$",
@@ -58,23 +50,16 @@ class LawChunker:
     def chunk(self, doc: ParsedDocument) -> list[Chunk]:
         logger.info(f"Law chunking: '{doc.doc_title}'")
         chunks = []
-        current_section = doc.doc_section
+        current_section = None
         chunk_index = 0
 
+        # try splitting by clause first
         splits = self.CLAUSE_SPLIT_PATTERN.split(doc.raw_text)
 
         if len(splits) <= 2:
+            # no clauses found — fall back to section splitting
+            logger.warning("No clauses found, falling back to section splitting")
             splits = self.SECTION_SPLIT_PATTERN.split(doc.raw_text)
-
-        if len(splits) <= 2:
-            splits = self.USCIS_SUBSECTION_PATTERN.split(doc.raw_text)
-
-        if len(splits) <= 2:
-            splits = self.NUMBERED_LIST_PATTERN.split(doc.raw_text)
-
-        if len(splits) <= 2:
-            logger.warning("No structural splits found — using paragraph chunking")
-            splits = [p for p in doc.raw_text.split("\n\n") if len(p.strip()) > 80]
 
         for split in splits:
             split = split.strip()
@@ -97,7 +82,7 @@ class LawChunker:
                 chunks.append(Chunk(
                     text=sub,
                     chunk_index=chunk_index,
-                    section=current_section or doc.doc_section,
+                    section=current_section,
                     clause=clause,
                     chunk_type="law",
                 ))

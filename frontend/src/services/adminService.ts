@@ -36,4 +36,19 @@ export const adminService = {
     const response = await api.post("/admin/scrape/trigger")
     return response.data
   },
+
+  async scrapeMissingPolicy() {
+    const response = await api.post("/admin/scrape/missing-policy")
+    return response.data
+  },
+
+  async getDataCompleteness() {
+    const response = await api.get<{
+      completeness_pct: number
+      manifest_chapters: number
+      policy_chapters: { scraped: number; target: number; missing: number }
+      milvus_vectors: { laws: { count: number; target: number }; cases: { count: number; target: number } }
+    }>("/admin/data-completeness")
+    return response.data
+  },
 }

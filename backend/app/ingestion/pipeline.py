@@ -44,7 +44,10 @@ class IngestionPipeline:
             parsed = self.parser.parse(file_path)
 
             # Step 2: Classify
-            classification = self.classifier.classify(parsed.raw_text)
+            classification = self.classifier.classify(
+                parsed.raw_text,
+                file_metadata=parsed.file_metadata,
+            )
             doc_type = DocumentType(classification.doc_type)
             visa_type = classification.detected_visa_type
 

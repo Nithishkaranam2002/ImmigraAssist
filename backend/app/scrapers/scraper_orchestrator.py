@@ -103,7 +103,9 @@ class ScraperOrchestrator:
                             result.failed_pages += 1
 
                     if scraper.failed_urls:
-                        await self._record_failed_urls(db, scraper.failed_urls)
+                        await self._record_scrape_failures(
+                            db, scraper.failed_urls, "uscis_policy", "LAW"
+                        )
                         result.failed_pages += len(scraper.failed_urls)
                     if retry_failed and scraper.failed_urls:
                         logger.info(f"Retrying {len(scraper.failed_urls)} failed policy URLs")
@@ -119,8 +121,6 @@ class ScraperOrchestrator:
                                     result.new_pages += 1
                                 else:
                                     result.changed_pages += 1
-                        if scraper.failed_urls:
-                            await self._record_failed_urls(db, scraper.failed_urls)
                         result.failed_pages += len(scraper.failed_urls)
                 else:
                     pages = await scraper.scrape_all()
@@ -151,6 +151,29 @@ class ScraperOrchestrator:
         )
 
         return result
+
+    async def _record_scrape_failures(
+        self,
+        db: AsyncSession,
+        urls: list[str],
+        source_type: str,
+        doc_type: str,
+    ) -> None:
+        """Persist URLs that failed to scrape so missing-policy task can retry."""
+        for url in urls:
+            try:
+                await self.change_detector.update_record(
+                    db=db,
+                    url=url,
+                    new_hash="",
+                    source_type=source_type,
+                    doc_type=doc_type,
+                    title=url.split("/")[-1],
+                    status=ScrapeStatus.FAILED,
+                    error_message="Page scrape failed after retries",
+                )
+            except Exception as e:
+                logger.warning(f"Could not record scrape failure for {url}: {e}")
 
     def _get_content(self, page) -> str:
         """
@@ -299,20 +322,3 @@ class ScraperOrchestrator:
         name = url.replace("https://", "").replace("http://", "")
         name = re.sub(r"[^\w]", "_", name)
         return name[:80]
-
-    async def _record_failed_urls(self, db: AsyncSession, urls: list[str]) -> None:
-        """Persist scrape failures so admin completeness reflects gaps."""
-        for url in urls:
-            try:
-                await self.change_detector.update_record(
-                    db=db,
-                    url=url,
-                    new_hash="",
-                    source_type="uscis_policy",
-                    doc_type="LAW",
-                    title=url.split("/")[-1].replace("-", " ").title()[:200],
-                    status=ScrapeStatus.FAILED,
-                    error_message="Page scrape failed after retries",
-                )
-            except Exception as e:
-                logger.warning(f"Could not record failed URL {url}: {e}")

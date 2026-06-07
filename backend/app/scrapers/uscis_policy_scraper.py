@@ -2,15 +2,8 @@ import asyncio
 import re
 from typing import Optional
 from dataclasses import dataclass, field
-from app.scrapers.policy_urls import (
-    DIRECT_CHAPTER_URLS,
-    DISCOVERY_SEED_URLS,
-    LINK_EXTRACT_JS,
-    is_chapter_url,
-    is_part_url,
-    normalize_policy_url,
-    parse_policy_url,
-)
+from app.scrapers.policy_chapter_manifest import EXTENDED_CHAPTER_URLS
+from app.scrapers.policy_visa_map import metadata_from_policy_url
 from app.utils.logger import logger
 
 
@@ -28,12 +21,93 @@ class ScrapedPage:
 class ScrapeReport:
     pages: list[ScrapedPage] = field(default_factory=list)
     failed_urls: list[str] = field(default_factory=list)
-    discovered_urls: list[str] = field(default_factory=list)
 
+
+# Fallback chapter URLs if dynamic discovery fails
+DIRECT_CHAPTER_URLS = [
+    "https://www.uscis.gov/policy-manual/volume-1-part-a-chapter-1",
+    "https://www.uscis.gov/policy-manual/volume-1-part-a-chapter-2",
+    "https://www.uscis.gov/policy-manual/volume-1-part-a-chapter-3",
+    "https://www.uscis.gov/policy-manual/volume-1-part-b-chapter-1",
+    "https://www.uscis.gov/policy-manual/volume-1-part-b-chapter-2",
+    "https://www.uscis.gov/policy-manual/volume-1-part-b-chapter-3",
+    "https://www.uscis.gov/policy-manual/volume-2-part-a-chapter-1",
+    "https://www.uscis.gov/policy-manual/volume-2-part-a-chapter-2",
+    "https://www.uscis.gov/policy-manual/volume-2-part-b-chapter-1",
+    "https://www.uscis.gov/policy-manual/volume-2-part-b-chapter-2",
+    "https://www.uscis.gov/policy-manual/volume-2-part-b-chapter-3",
+    "https://www.uscis.gov/policy-manual/volume-2-part-f-chapter-1",
+    "https://www.uscis.gov/policy-manual/volume-2-part-f-chapter-2",
+    "https://www.uscis.gov/policy-manual/volume-2-part-f-chapter-3",
+    "https://www.uscis.gov/policy-manual/volume-2-part-f-chapter-4",
+    "https://www.uscis.gov/policy-manual/volume-2-part-f-chapter-5",
+    "https://www.uscis.gov/policy-manual/volume-3-part-b-chapter-1",
+    "https://www.uscis.gov/policy-manual/volume-3-part-b-chapter-2",
+    "https://www.uscis.gov/policy-manual/volume-3-part-b-chapter-3",
+    "https://www.uscis.gov/policy-manual/volume-3-part-c-chapter-1",
+    "https://www.uscis.gov/policy-manual/volume-3-part-c-chapter-2",
+    "https://www.uscis.gov/policy-manual/volume-6-part-b-chapter-1",
+    "https://www.uscis.gov/policy-manual/volume-6-part-b-chapter-2",
+    "https://www.uscis.gov/policy-manual/volume-6-part-b-chapter-3",
+    "https://www.uscis.gov/policy-manual/volume-6-part-b-chapter-4",
+    "https://www.uscis.gov/policy-manual/volume-6-part-d-chapter-1",
+    "https://www.uscis.gov/policy-manual/volume-6-part-d-chapter-2",
+    "https://www.uscis.gov/policy-manual/volume-6-part-d-chapter-3",
+    "https://www.uscis.gov/policy-manual/volume-6-part-e-chapter-1",
+    "https://www.uscis.gov/policy-manual/volume-6-part-e-chapter-2",
+    "https://www.uscis.gov/policy-manual/volume-6-part-f-chapter-1",
+    "https://www.uscis.gov/policy-manual/volume-6-part-f-chapter-2",
+    "https://www.uscis.gov/policy-manual/volume-6-part-f-chapter-3",
+    "https://www.uscis.gov/policy-manual/volume-6-part-f-chapter-4",
+    "https://www.uscis.gov/policy-manual/volume-6-part-g-chapter-1",
+    "https://www.uscis.gov/policy-manual/volume-6-part-g-chapter-2",
+    "https://www.uscis.gov/policy-manual/volume-6-part-g-chapter-3",
+    "https://www.uscis.gov/policy-manual/volume-7-part-a-chapter-1",
+    "https://www.uscis.gov/policy-manual/volume-7-part-a-chapter-2",
+    "https://www.uscis.gov/policy-manual/volume-7-part-a-chapter-3",
+    "https://www.uscis.gov/policy-manual/volume-7-part-b-chapter-1",
+    "https://www.uscis.gov/policy-manual/volume-7-part-b-chapter-2",
+    "https://www.uscis.gov/policy-manual/volume-7-part-b-chapter-3",
+    "https://www.uscis.gov/policy-manual/volume-8-part-a-chapter-1",
+    "https://www.uscis.gov/policy-manual/volume-8-part-a-chapter-2",
+    "https://www.uscis.gov/policy-manual/volume-8-part-b-chapter-1",
+    "https://www.uscis.gov/policy-manual/volume-8-part-b-chapter-2",
+    "https://www.uscis.gov/policy-manual/volume-8-part-b-chapter-3",
+    "https://www.uscis.gov/policy-manual/volume-8-part-g-chapter-1",
+    "https://www.uscis.gov/policy-manual/volume-8-part-g-chapter-2",
+    "https://www.uscis.gov/policy-manual/volume-8-part-g-chapter-3",
+    "https://www.uscis.gov/policy-manual/volume-9-part-a-chapter-1",
+    "https://www.uscis.gov/policy-manual/volume-9-part-a-chapter-2",
+    "https://www.uscis.gov/policy-manual/volume-9-part-b-chapter-1",
+    "https://www.uscis.gov/policy-manual/volume-9-part-b-chapter-2",
+    "https://www.uscis.gov/policy-manual/volume-10-part-a-chapter-1",
+    "https://www.uscis.gov/policy-manual/volume-10-part-a-chapter-2",
+    "https://www.uscis.gov/policy-manual/volume-10-part-b-chapter-1",
+    "https://www.uscis.gov/policy-manual/volume-10-part-b-chapter-2",
+    "https://www.uscis.gov/policy-manual/volume-12-part-a-chapter-1",
+    "https://www.uscis.gov/policy-manual/volume-12-part-a-chapter-2",
+    "https://www.uscis.gov/policy-manual/volume-12-part-b-chapter-1",
+    "https://www.uscis.gov/policy-manual/volume-12-part-b-chapter-2",
+    "https://www.uscis.gov/policy-manual/volume-12-part-b-chapter-3",
+    "https://www.uscis.gov/policy-manual/volume-12-part-b-chapter-4",
+    "https://www.uscis.gov/policy-manual/volume-12-part-d-chapter-1",
+    "https://www.uscis.gov/policy-manual/volume-12-part-d-chapter-2",
+    "https://www.uscis.gov/policy-manual/volume-12-part-d-chapter-3",
+]
+
+# Merge original fallback + extended manifest (Vol 2 H-1B, Vol 4 asylum, etc.)
+ALL_FALLBACK_CHAPTER_URLS = sorted(set(DIRECT_CHAPTER_URLS) | set(EXTENDED_CHAPTER_URLS))
+
+POLICY_INDEX_URLS = [
+    "https://www.uscis.gov/policy-manual",
+    "https://www.uscis.gov/policy-manual/table-of-contents",
+] + [f"https://www.uscis.gov/policy-manual/volume-{v}" for v in range(1, 13)]
 
 MIN_CONTENT_LENGTH = 200
 MAX_RETRIES = 3
 PAGE_TIMEOUT_MS = 60000
+SCRAPE_BATCH_SIZE = 3
+SCRAPE_BATCH_DELAY_SEC = 2
 
 
 class USCISPolicyScraper:
@@ -42,7 +116,6 @@ class USCISPolicyScraper:
         self.source_type = "uscis_policy"
         self.doc_type = "LAW"
         self.failed_urls: list[str] = []
-        self.discovered_urls: list[str] = []
 
     async def scrape_all(self, urls: list[str] | None = None) -> list[ScrapedPage]:
         report = await self.scrape_with_report(urls)
@@ -64,16 +137,15 @@ class USCISPolicyScraper:
                 context = await browser.new_context(
                     user_agent="Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/537.36"
                 )
-                batch_size = 2
-                for i in range(0, len(target_urls), batch_size):
-                    for url in target_urls[i:i + batch_size]:
+                for i in range(0, len(target_urls), SCRAPE_BATCH_SIZE):
+                    for url in target_urls[i:i + SCRAPE_BATCH_SIZE]:
                         page = await self._scrape_page_with_retry(context, url)
                         if page:
                             yield page
                         else:
                             self.failed_urls.append(url)
-                    if i + batch_size < len(target_urls):
-                        await asyncio.sleep(3)
+                    if i + SCRAPE_BATCH_SIZE < len(target_urls):
+                        await asyncio.sleep(SCRAPE_BATCH_DELAY_SEC)
                 await browser.close()
         except Exception as e:
             logger.error(f"Streaming policy scraper error: {e}")
@@ -86,7 +158,6 @@ class USCISPolicyScraper:
             target_urls = urls
         else:
             target_urls = await self._discover_chapter_urls()
-            report.discovered_urls = list(target_urls)
             logger.info(f"Discovered {len(target_urls)} policy chapter URLs")
 
         logger.info(f"Starting USCIS policy scraper — {len(target_urls)} chapters")
@@ -102,9 +173,8 @@ class USCISPolicyScraper:
                     user_agent="Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/537.36"
                 )
 
-                batch_size = 2
-                for i in range(0, len(target_urls), batch_size):
-                    batch = target_urls[i:i + batch_size]
+                for i in range(0, len(target_urls), SCRAPE_BATCH_SIZE):
+                    batch = target_urls[i:i + SCRAPE_BATCH_SIZE]
                     for url in batch:
                         page = await self._scrape_page_with_retry(context, url)
                         if page:
@@ -113,8 +183,8 @@ class USCISPolicyScraper:
                             report.failed_urls.append(url)
                             self.failed_urls.append(url)
 
-                    if i + batch_size < len(target_urls):
-                        await asyncio.sleep(3)
+                    if i + SCRAPE_BATCH_SIZE < len(target_urls):
+                        await asyncio.sleep(SCRAPE_BATCH_DELAY_SEC)
 
                 await browser.close()
 
@@ -128,12 +198,8 @@ class USCISPolicyScraper:
         return report
 
     async def _discover_chapter_urls(self) -> list[str]:
-        """
-        Crawl TOC, volume indexes, and part indexes to find all chapter URLs.
-        Falls back to DIRECT_CHAPTER_URLS if discovery fails.
-        """
-        chapters: set[str] = {normalize_policy_url(u) for u in DIRECT_CHAPTER_URLS}
-        parts_to_crawl: set[str] = set()
+        """Crawl policy manual index + per-volume pages to find all chapter URLs."""
+        discovered: set[str] = set(ALL_FALLBACK_CHAPTER_URLS)
 
         try:
             from playwright.async_api import async_playwright
@@ -146,52 +212,43 @@ class USCISPolicyScraper:
                     user_agent="Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/537.36"
                 )
 
-                for seed_url in DISCOVERY_SEED_URLS:
-                    links = await self._extract_policy_links(context, seed_url)
-                    for link in links:
-                        if is_chapter_url(link):
-                            chapters.add(link)
-                        elif is_part_url(link):
-                            parts_to_crawl.add(link)
-
-                logger.info(
-                    f"Discovery pass 1 — {len(chapters)} chapters, "
-                    f"{len(parts_to_crawl)} part indexes to crawl"
-                )
-
-                for part_url in sorted(parts_to_crawl):
-                    links = await self._extract_policy_links(context, part_url)
-                    for link in links:
-                        if is_chapter_url(link):
-                            chapters.add(link)
+                for index_url in POLICY_INDEX_URLS:
+                    page = None
+                    try:
+                        page = await context.new_page()
+                        await page.route(
+                            "**/*.{png,jpg,jpeg,gif,svg,ico,woff,woff2}",
+                            lambda route: route.abort(),
+                        )
+                        await page.goto(index_url, wait_until="domcontentloaded", timeout=PAGE_TIMEOUT_MS)
+                        links = await page.evaluate("""() => {
+                            const urls = [];
+                            for (const a of document.querySelectorAll('a[href]')) {
+                                const href = a.href;
+                                if (href.includes('/policy-manual/volume-') &&
+                                    href.includes('-chapter-')) {
+                                    urls.push(href.split('#')[0].split('?')[0]);
+                                }
+                            }
+                            return [...new Set(urls)];
+                        }""")
+                        discovered.update(links or [])
+                    except Exception as e:
+                        logger.warning(f"URL discovery failed for {index_url}: {e}")
+                    finally:
+                        if page:
+                            await page.close()
 
                 await browser.close()
         except Exception as e:
             logger.warning(f"Dynamic URL discovery failed, using fallback list: {e}")
 
-        discovered = sorted(chapters)
-        self.discovered_urls = discovered
-        logger.info(f"Policy URL discovery complete — {len(discovered)} chapter URLs")
-        return discovered
-
-    async def _extract_policy_links(self, context, url: str) -> list[str]:
-        page = None
-        try:
-            page = await context.new_page()
-            await page.route(
-                "**/*.{png,jpg,jpeg,gif,svg,ico,woff,woff2,mp4}",
-                lambda route: route.abort(),
-            )
-            await page.goto(url, wait_until="domcontentloaded", timeout=PAGE_TIMEOUT_MS)
-            await page.wait_for_timeout(1500)
-            raw_links = await page.evaluate(LINK_EXTRACT_JS)
-            return [normalize_policy_url(u) for u in (raw_links or [])]
-        except Exception as e:
-            logger.warning(f"Link extraction failed for {url}: {e}")
-            return []
-        finally:
-            if page:
-                await page.close()
+        urls = sorted(discovered)
+        logger.info(
+            f"Policy URL discovery complete — {len(urls)} chapters "
+            f"({len(ALL_FALLBACK_CHAPTER_URLS)} in fallback manifest)"
+        )
+        return urls
 
     async def _scrape_page_with_retry(self, context, url: str) -> Optional[ScrapedPage]:
         for attempt in range(1, MAX_RETRIES + 1):
@@ -257,7 +314,6 @@ class USCISPolicyScraper:
                 logger.warning(f"Insufficient content from {url} ({len(content)} chars)")
                 return None
 
-            metadata = parse_policy_url(url)
             logger.info(f"Scraped {url} — {len(content)} chars — '{title[:50]}'")
 
             return ScrapedPage(
@@ -266,7 +322,7 @@ class USCISPolicyScraper:
                 content=content,
                 source_type=self.source_type,
                 doc_type=self.doc_type,
-                metadata=metadata,
+                metadata=metadata_from_policy_url(url, title),
             )
 
         except Exception as e:

@@ -34,6 +34,12 @@ export function DocumentsPage() {
     refetchInterval: 5000,
   })
 
+  const { data: completeness } = useQuery({
+    queryKey: ["data-completeness"],
+    queryFn: adminService.getDataCompleteness,
+    refetchInterval: 30000,
+  })
+
   const uploadMutation = useMutation({
     mutationFn: documentService.upload,
     onSuccess: () => {
@@ -47,8 +53,17 @@ export function DocumentsPage() {
 
   const scrapeMutation = useMutation({
     mutationFn: () => adminService.triggerScrape(),
-    onSuccess: () => toast("Scraper pipeline triggered in background", "success"),
+    onSuccess: () => toast("Full scraper pipeline started in background", "success"),
     onError: (err: unknown) => toast(getApiErrorMessage(err, "Scrape trigger failed"), "error"),
+  })
+
+  const missingPolicyMutation = useMutation({
+    mutationFn: () => adminService.scrapeMissingPolicy(),
+    onSuccess: () => {
+      toast("Missing USCIS policy chapters scrape started", "success")
+      queryClient.invalidateQueries({ queryKey: ["data-completeness"] })
+    },
+    onError: (err: unknown) => toast(getApiErrorMessage(err, "Missing policy scrape failed"), "error"),
   })
 
   const handleFile = (file: File) => {
@@ -75,21 +90,58 @@ export function DocumentsPage() {
         title="Documents"
         description="Upload USCIS policy PDFs and manage the knowledge base corpus"
         action={
-          <Button
-            variant="outline"
-            size="sm"
-            onClick={() => scrapeMutation.mutate()}
-            disabled={scrapeMutation.isPending}
-          >
-            {scrapeMutation.isPending ? (
-              <Loader2 className="w-4 h-4 animate-spin mr-2" />
-            ) : (
-              <RefreshCw className="w-4 h-4 mr-2" />
-            )}
-            Re-scrape Sources
-          </Button>
+          <div className="flex flex-wrap gap-2">
+            <Button
+              variant="default"
+              size="sm"
+              onClick={() => missingPolicyMutation.mutate()}
+              disabled={missingPolicyMutation.isPending || scrapeMutation.isPending}
+            >
+              {missingPolicyMutation.isPending ? (
+                <Loader2 className="w-4 h-4 animate-spin mr-2" />
+              ) : (
+                <RefreshCw className="w-4 h-4 mr-2" />
+              )}
+              Scrape Missing Policy
+            </Button>
+            <Button
+              variant="outline"
+              size="sm"
+              onClick={() => scrapeMutation.mutate()}
+              disabled={scrapeMutation.isPending || missingPolicyMutation.isPending}
+            >
+              {scrapeMutation.isPending ? (
+                <Loader2 className="w-4 h-4 animate-spin mr-2" />
+              ) : (
+                <RefreshCw className="w-4 h-4 mr-2" />
+              )}
+              Full Re-scrape
+            </Button>
+          </div>
         }
       />
+
+      {completeness && (
+        <Card className="border-brand-200 bg-brand-50/30 shadow-sm">
+          <CardContent className="pt-5 pb-4">
+            <div className="flex flex-wrap items-center justify-between gap-4">
+              <div>
+                <p className="text-sm font-semibold text-slate-900">Corpus completeness</p>
+                <p className="text-xs text-slate-600 mt-1">
+                  {completeness.policy_chapters.scraped} / {completeness.policy_chapters.target} policy
+                  chapters indexed · {completeness.manifest_chapters} in manifest
+                </p>
+              </div>
+              <div className="text-right">
+                <p className="text-2xl font-bold text-brand-700">{completeness.completeness_pct}%</p>
+                <p className="text-xs text-slate-500">
+                  {completeness.milvus_vectors.laws.count} law + {completeness.milvus_vectors.cases.count} case vectors
+                </p>
+              </div>
+            </div>
+          </CardContent>
+        </Card>
+      )}
 
       <div className="grid grid-cols-1 sm:grid-cols-3 gap-4">
         <Card className="border-slate-200 shadow-sm">

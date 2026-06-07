@@ -62,12 +62,13 @@ class USCISNewsScraper:
                 article_urls = list(set(article_urls))
                 logger.info(f"Total news articles found: {len(article_urls)}")
 
-                # limit to latest 100 articles
+                # limit to latest 100 articles (policy updates + alerts)
                 article_urls = article_urls[:100]
 
-                # scrape articles in batches of 2 (more reliable on small servers)
-                for i in range(0, len(article_urls), 2):
-                    batch = article_urls[i:i + 3]
+                # scrape articles in batches of 3
+                batch_size = 3
+                for i in range(0, len(article_urls), batch_size):
+                    batch = article_urls[i:i + batch_size]
                     tasks = [self._scrape_article(context, url) for url in batch]
                     results = await asyncio.gather(*tasks, return_exceptions=True)
 
@@ -77,7 +78,7 @@ class USCISNewsScraper:
                         elif result:
                             pages.append(result)
 
-                    if i + 2 < len(article_urls):
+                    if i + batch_size < len(article_urls):
                         await asyncio.sleep(2)
 
                 await browser.close()

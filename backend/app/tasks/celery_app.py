@@ -47,6 +47,7 @@ celery_app.conf.update(
                 "scrape_policy": True,
                 "scrape_news": True,
                 "scrape_bia": True,
+                "retry_failed": True,
             },
         },
         "scrape-missing-policy-daily": {

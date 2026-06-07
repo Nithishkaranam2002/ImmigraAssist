@@ -19,8 +19,7 @@ class ParsedDocument:
     pages: list[ParsedPage]
     total_pages: int
     doc_title: str
-    doc_section: Optional[str] = None
-    source_url: Optional[str] = None
+    file_metadata: dict | None = None
 
 
 class PDFParser:
@@ -52,29 +51,11 @@ class PDFParser:
             with open(file_path, "r", encoding="utf-8", errors="ignore") as f:
                 text = f.read()
 
-            doc_title = file_path.split("/")[-1].replace(".txt", "")
-            doc_section = None
-            source_url = None
-            body = text
-
-            lines = text.split("\n")
-            header_end = 0
-            for i, line in enumerate(lines):
-                stripped = line.strip()
-                if stripped.startswith("TITLE:"):
-                    doc_title = stripped.replace("TITLE:", "").strip()
-                elif stripped.startswith("SECTION:"):
-                    doc_section = stripped.replace("SECTION:", "").strip()
-                elif stripped.startswith("URL:"):
-                    source_url = stripped.replace("URL:", "").strip()
-                elif stripped.startswith("=" * 20):
-                    header_end = i + 1
-                    break
-
-            if header_end:
-                body = "\n".join(lines[header_end:])
-
+            file_metadata, body = self._parse_scraped_headers(text)
             body = self._clean_text(body)
+            doc_title = file_path.split("/")[-1].replace(".txt", "")
+            if file_metadata.get("title"):
+                doc_title = file_metadata["title"]
 
             pages = [ParsedPage(
                 page_number=1,
@@ -89,8 +70,7 @@ class PDFParser:
                 pages=pages,
                 total_pages=1,
                 doc_title=doc_title,
-                doc_section=doc_section,
-                source_url=source_url,
+                file_metadata=file_metadata,
             )
 
         except Exception as e:
@@ -141,6 +121,35 @@ class PDFParser:
         except Exception as e:
             logger.error(f"Failed to parse PDF {file_path}: {e}")
             raise
+
+    def _parse_scraped_headers(self, text: str) -> tuple[dict, str]:
+        """Extract TITLE/SOURCE/VISA_TYPE headers written by scraper orchestrator."""
+        metadata: dict = {}
+        lines = text.split("\n")
+        body_start = 0
+
+        for i, line in enumerate(lines):
+            stripped = line.strip()
+            if stripped.startswith("=" * 20):
+                body_start = i + 1
+                break
+            if ":" in stripped and i < 30:
+                key, _, val = stripped.partition(":")
+                key = key.strip().lower()
+                val = val.strip()
+                if key in ("title", "source", "url", "doc_type", "visa_type", "source_url",
+                           "policy_volume", "policy_part", "policy_chapter", "policy_title"):
+                    metadata[key] = val
+                continue
+            if stripped and not stripped.startswith("="):
+                if i > 0 and body_start == 0:
+                    body_start = i
+                break
+
+        body = "\n".join(lines[body_start:]).strip() if body_start else text
+        if metadata.get("policy_title") and not metadata.get("title"):
+            metadata["title"] = metadata["policy_title"]
+        return metadata, body
 
     def _clean_text(self, text: str) -> str:
         text = re.sub(r" {2,}", " ", text)

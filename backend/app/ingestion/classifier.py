@@ -47,11 +47,21 @@ class DocumentClassifier:
         "f1": re.compile(r"\bf[-\s]?1\b", re.IGNORECASE),
     }
 
-    def classify(self, text: str) -> ClassificationResult:
+    def classify(self, text: str, file_metadata: dict | None = None) -> ClassificationResult:
         """
         Classify document type and detect visa type from text.
         Uses first 3000 chars — enough signal without reading whole doc.
         """
+        header_visa = None
+        if file_metadata:
+            header_visa = file_metadata.get("visa_type")
+            if file_metadata.get("source") == "uscis_policy":
+                return ClassificationResult(
+                    doc_type="law",
+                    confidence=0.95,
+                    detected_visa_type=header_visa or self._detect_visa_type(text[:5000]),
+                )
+
         sample = text[:3000].lower()
 
         law_score = sum(1 for kw in self.LAW_KEYWORDS if kw in sample)
@@ -74,7 +84,7 @@ class DocumentClassifier:
             doc_type = "case"
             confidence = case_score / total
 
-        visa_type = self._detect_visa_type(text[:5000])
+        visa_type = header_visa or self._detect_visa_type(text[:5000])
 
         logger.info(
             f"Classified as '{doc_type}' "
