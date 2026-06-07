@@ -34,6 +34,16 @@ class ChangeDetector:
         """Compute MD5 hash of content."""
         return hashlib.md5(content.encode("utf-8")).hexdigest()
 
+    def _hash_for_update(
+        self,
+        old_hash: str | None,
+        new_hash: str,
+        status: ScrapeStatus,
+    ) -> str:
+        if status == ScrapeStatus.FAILED and old_hash:
+            return old_hash
+        return new_hash
+
     async def check(
         self,
         db: AsyncSession,
@@ -129,7 +139,8 @@ class ChangeDetector:
             db.add(record)
         else:
             old_hash = record.content_hash
-            record.content_hash = new_hash
+            stored_hash = self._hash_for_update(old_hash, new_hash, status)
+            record.content_hash = stored_hash
             record.source_type = source_type
             record.doc_type = doc_type
             record.title = title
@@ -137,7 +148,7 @@ class ChangeDetector:
             record.error_message = error_message
             record.last_scraped_at = now
             record.scrape_count = (record.scrape_count or 0) + 1
-            if old_hash != new_hash:
+            if old_hash != stored_hash:
                 record.last_changed_at = now
 
         await db.commit()

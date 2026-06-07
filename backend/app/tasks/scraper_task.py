@@ -1,7 +1,9 @@
 import asyncio
+from collections.abc import Iterable
 from celery import Task
 from app.tasks.celery_app import celery_app
 from app.db.postgres import AsyncSessionLocal
+from app.db.models.scrape_record import ScrapeStatus
 from app.scrapers.scraper_orchestrator import ScraperOrchestrator
 from app.utils.logger import logger
 
@@ -15,6 +17,23 @@ class AsyncTask(Task):
             self._loop = asyncio.new_event_loop()
             asyncio.set_event_loop(self._loop)
         return self._loop
+
+
+def _select_policy_urls_to_scrape(
+    all_urls: Iterable[str],
+    recorded_urls: Iterable[tuple[str, ScrapeStatus | str | None]],
+) -> list[str]:
+    """Return URLs that are missing or previously failed."""
+    recorded_statuses = {url: status for url, status in recorded_urls}
+    return sorted(
+        url
+        for url in set(all_urls)
+        if (
+            url not in recorded_statuses
+            or recorded_statuses[url] == ScrapeStatus.FAILED
+            or recorded_statuses[url] == ScrapeStatus.FAILED.value
+        )
+    )
 
 
 @celery_app.task(
@@ -87,10 +106,8 @@ def run_missing_policy_task(self):
             discovered = await scraper._discover_chapter_urls()
             all_urls = set(discovered) | set(DIRECT_CHAPTER_URLS)
 
-            result = await db.execute(select(ScrapeRecord.url))
-            existing = {row[0] for row in result.fetchall()}
-
-            missing = sorted(all_urls - existing)
+            result = await db.execute(select(ScrapeRecord.url, ScrapeRecord.status))
+            missing = _select_policy_urls_to_scrape(all_urls, result.fetchall())
             logger.info(f"Missing policy URLs to scrape: {len(missing)}")
 
             if not missing:
