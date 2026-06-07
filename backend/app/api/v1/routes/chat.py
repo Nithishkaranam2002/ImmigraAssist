@@ -247,7 +247,7 @@ async def doc_query(
         clean_query=clean_query,
         matter_id=body.matter_id,
         session_id=session_id,
-        query_mode="standard",
+        query_mode="doc_review",
         start_time=start_time,
         extra_context=extra,
     )

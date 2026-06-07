@@ -93,6 +93,25 @@ Example format (follow exactly):
 Cover every material difference present in the reference material.
 """
 
+    DOC_REVIEW_ADDENDUM = """
+
+## DOCUMENT REVIEW MODE
+The user pasted a CLIENT DOCUMENT for attorney review. Your primary job is to analyze THAT document.
+
+In the ANSWER section:
+### Document Summary (2-3 sentences)
+### Issues Found in the Document
+- Quote or paraphrase specific problematic language from the client document
+- Explain the immigration risk for each issue
+### Missing Evidence / Documentation
+- List what should be added to strengthen the filing
+### Recommended Revisions
+- Concrete edits to the draft
+
+Do NOT give a generic visa overview unless needed to explain an issue.
+Prioritize critique of the client document over retrieved policy summaries.
+"""
+
     def build(
         self,
         query: str,
@@ -100,10 +119,12 @@ Cover every material difference present in the reference material.
         visa_type: str | None = None,
         query_mode: str = "standard",
     ) -> BuiltPrompt:
-        user_message = self._build_user_message(query, context, visa_type)
+        user_message = self._build_user_message(query, context, visa_type, query_mode)
         system = SYSTEM_PROMPT
         if query_mode == "compare":
             system += self.COMPARE_ADDENDUM
+        elif query_mode == "doc_review":
+            system += self.DOC_REVIEW_ADDENDUM
 
         return BuiltPrompt(
             system_message=system,
@@ -160,6 +181,7 @@ Cover every material difference present in the reference material.
         query: str,
         context: BuiltContext,
         visa_type: str | None,
+        query_mode: str = "standard",
     ) -> str:
         parts = []
 
@@ -190,10 +212,18 @@ Cover every material difference present in the reference material.
                 "State clearly that sources are limited and avoid speculating on specifics."
             )
 
-        parts.append(
-            f"## QUESTION\n{query}\n\n"
-            f"Produce a complete attorney-ready research memo following the required format. "
-            f"Include every material fact from the reference material above."
-        )
+        if query_mode == "doc_review":
+            parts.append(
+                f"## ATTORNEY QUESTION\n{query}\n\n"
+                f"Review the CLIENT DOCUMENT section above. Answer the question by critiquing "
+                f"that specific draft — cite problematic lines, list missing evidence, and "
+                f"recommend revisions. Use retrieved law/case sources to support each issue."
+            )
+        else:
+            parts.append(
+                f"## QUESTION\n{query}\n\n"
+                f"Produce a complete attorney-ready research memo following the required format. "
+                f"Include every material fact from the reference material above."
+            )
 
         return "\n\n".join(parts)
