@@ -13,6 +13,7 @@ from app.db.models.user import User
 from app.db.models.audit_log import AuditLog
 from app.db.models.chat_query_meta import ChatQueryMeta
 from app.db.models.review_item import ReviewItem
+from app.db.models.matter import Matter
 from app.api.v1.dependencies import get_current_user
 from app.guardrails.content_moderator import ContentModerator
 from app.guardrails.pii_detector import get_pii_detector
@@ -169,6 +170,41 @@ async def _prepare_query_context(
     return session, retrieval_query, filter_context, new_topic
 
 
+async def _load_matter_for_chat(
+    db: AsyncSession,
+    matter_id: UUID,
+    user_id: UUID,
+) -> tuple[str | None, str | None]:
+    """Return (prompt context block, visa_type) for the active matter."""
+    result = await db.execute(
+        select(Matter).where(Matter.id == matter_id, Matter.user_id == user_id)
+    )
+    matter = result.scalars().first()
+    if not matter:
+        return None, None
+
+    lines = [
+        f"Title: {matter.title}",
+    ]
+    if matter.client_name:
+        lines.append(f"Client: {matter.client_name}")
+    if matter.visa_type:
+        lines.append(f"Visa type: {matter.visa_type}")
+    if matter.description and matter.description.strip():
+        lines.append(f"Case notes: {matter.description.strip()}")
+
+    text = (
+        "## ACTIVE MATTER (client workspace)\n"
+        + "\n".join(lines)
+        + "\n\nWhen the user says \"here\", \"this client\", \"her/him\", or similar, "
+        "use these matter notes for context. Do not invent client facts not stated above."
+    )
+    visa = matter.visa_type or None
+    if visa == "h4_ead":
+        visa = "h4"
+    return text, visa
+
+
 def _conversation_flags(
     session: SessionHistory,
     clean_query: str,
@@ -315,6 +351,7 @@ async def _run_pipeline(
     start_time: float,
     extra_context: Optional[str],
 ) -> dict:
+    matter_context: str | None = None
     async with session_scope() as db:
         session, retrieval_query, filter_context, new_topic = await _prepare_query_context(
             db,
@@ -322,6 +359,14 @@ async def _run_pipeline(
             session_id=session_id,
             user_id=current_user.id,
         )
+        if matter_id:
+            matter_context, matter_visa = await _load_matter_for_chat(
+                db, matter_id, current_user.id
+            )
+            if matter_visa and not filter_context.visa_type:
+                filter_context = await metadata_filter.apply_visa_override(
+                    db, filter_context, matter_visa
+                )
 
     has_conversation, is_follow_up, is_forms_follow_up = _conversation_flags(
         session, clean_query, new_topic=new_topic, query_mode=query_mode
@@ -348,6 +393,9 @@ async def _run_pipeline(
     if extra_context:
         context.context_text = extra_context + "\n\n" + context.context_text
 
+    if matter_context:
+        context.context_text = matter_context + "\n\n" + context.context_text
+
     if session.text:
         context.context_text = (
             f"## PREVIOUS CONVERSATION ({session.turn_count} prior turn{'s' if session.turn_count != 1 else ''})\n"
@@ -363,6 +411,7 @@ async def _run_pipeline(
         is_forms_follow_up=is_forms_follow_up,
         prior_query=session.last_query,
         has_conversation=has_conversation,
+        has_matter=bool(matter_context),
     )
 
     gpt_response = await gpt_client.complete(prompt)
@@ -487,6 +536,7 @@ async def _stream_pipeline(
     current_user, body, clean_query, session_id, query_mode, start_time
 ):
     try:
+        matter_context: str | None = None
         async with session_scope() as db:
             session, retrieval_query, filter_context, new_topic = await _prepare_query_context(
                 db,
@@ -494,6 +544,14 @@ async def _stream_pipeline(
                 session_id=session_id,
                 user_id=current_user.id,
             )
+            if body.matter_id:
+                matter_context, matter_visa = await _load_matter_for_chat(
+                    db, body.matter_id, current_user.id
+                )
+                if matter_visa and not filter_context.visa_type:
+                    filter_context = await metadata_filter.apply_visa_override(
+                        db, filter_context, matter_visa
+                    )
 
         has_conversation, is_follow_up, is_forms_follow_up = _conversation_flags(
             session, clean_query, new_topic=new_topic, query_mode=query_mode
@@ -517,6 +575,9 @@ async def _stream_pipeline(
                 court_cases=court_cases,
             )
 
+        if matter_context:
+            context.context_text = matter_context + "\n\n" + context.context_text
+
         if session.text:
             context.context_text = (
                 f"## PREVIOUS CONVERSATION ({session.turn_count} prior turn{'s' if session.turn_count != 1 else ''})\n"
@@ -532,6 +593,7 @@ async def _stream_pipeline(
             is_forms_follow_up=is_forms_follow_up,
             prior_query=session.last_query,
             has_conversation=has_conversation,
+            has_matter=bool(matter_context),
         )
 
         full_content = ""

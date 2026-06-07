@@ -299,11 +299,18 @@ export function ChatPage() {
 
         {activeMatter && (
           <div className="px-4 sm:px-6 py-2.5 border-b border-brand-100 bg-brand-50/80 flex items-center justify-between gap-2 flex-wrap">
-            <div className="flex items-center gap-2 text-sm text-brand-900 min-w-0">
-              <Briefcase className="w-4 h-4 shrink-0 text-brand-600" />
-              <span className="font-medium truncate">Matter: {activeMatter.title}</span>
-              {activeMatter.client_name && (
-                <span className="text-brand-700/80 hidden sm:inline">· {activeMatter.client_name}</span>
+            <div className="flex flex-col sm:flex-row sm:items-center gap-0.5 sm:gap-2 text-sm text-brand-900 min-w-0 flex-1">
+              <div className="flex items-center gap-2 min-w-0">
+                <Briefcase className="w-4 h-4 shrink-0 text-brand-600" />
+                <span className="font-medium truncate">Matter: {activeMatter.title}</span>
+                {activeMatter.client_name && (
+                  <span className="text-brand-700/80 hidden sm:inline">· {activeMatter.client_name}</span>
+                )}
+              </div>
+              {activeMatter.description && (
+                <span className="text-xs text-brand-800/70 truncate hidden md:inline max-w-xl">
+                  {activeMatter.description}
+                </span>
               )}
             </div>
             <Link

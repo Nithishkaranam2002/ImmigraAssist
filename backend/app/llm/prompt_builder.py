@@ -155,6 +155,7 @@ Only add renewal-specific items (prior EAD, I-797C receipt) when the user asks a
         is_forms_follow_up: bool = False,
         prior_query: str | None = None,
         has_conversation: bool = False,
+        has_matter: bool = False,
     ) -> BuiltPrompt:
         user_message = self._build_user_message(
             query,
@@ -165,6 +166,7 @@ Only add renewal-specific items (prior EAD, I-797C receipt) when the user asks a
             is_forms_follow_up=is_forms_follow_up,
             prior_query=prior_query,
             has_conversation=has_conversation,
+            has_matter=has_matter,
         )
         system = SYSTEM_PROMPT
         if query_mode == "compare":
@@ -274,11 +276,20 @@ Only add renewal-specific items (prior EAD, I-797C receipt) when the user asks a
         is_forms_follow_up: bool = False,
         prior_query: str | None = None,
         has_conversation: bool = False,
+        has_matter: bool = False,
     ) -> str:
         parts = []
 
         if visa_type:
             parts.append(f"## QUERY CONTEXT\nVisa Category: {visa_type.upper().replace('_', '-')}\n")
+
+        if has_matter:
+            parts.append(
+                "## MATTER MODE\n"
+                "An ACTIVE MATTER section is in the reference material with client/case notes. "
+                "When the user refers to \"here\", \"this client\", or uses pronouns, tailor the "
+                "answer to that matter using only facts from the matter notes plus retrieved law."
+            )
 
         if has_conversation and prior_query and not is_follow_up:
             parts.append(
