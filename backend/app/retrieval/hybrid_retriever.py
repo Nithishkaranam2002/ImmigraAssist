@@ -27,6 +27,7 @@ class RetrievedChunk:
 class HybridRetriever:
 
     RRF_K = 60
+    MILVUS_EXPR_DOCUMENT_LIMIT = 50
 
     def __init__(self):
         self.embedder = OpenAIEmbeddings(
@@ -87,6 +88,17 @@ class HybridRetriever:
             pass
         return ""
 
+    def _document_id_exprs(self, document_ids: list[str]) -> list[str | None]:
+        if not document_ids:
+            return [None]
+
+        exprs = []
+        for start in range(0, len(document_ids), self.MILVUS_EXPR_DOCUMENT_LIMIT):
+            chunk = document_ids[start:start + self.MILVUS_EXPR_DOCUMENT_LIMIT]
+            id_list = '", "'.join(chunk)
+            exprs.append(f'document_id in ["{id_list}"]')
+        return exprs
+
     async def _hybrid_search(
         self,
         query: str,
@@ -96,11 +108,6 @@ class HybridRetriever:
         source: str,
         top_k: int,
     ) -> list[RetrievedChunk]:
-
-        expr = None
-        if document_ids:
-            id_list = '", "'.join(document_ids[:50])
-            expr = f'document_id in ["{id_list}"]'
 
         if source == "law":
             output_fields = [
@@ -113,48 +120,49 @@ class HybridRetriever:
                 "visa_type", "outcome", "jurisdiction",
             ]
 
-        try:
-            dense_results = collection.search(
-                data=[query_embedding],
-                anns_field="embedding",
-                param={
-                    "metric_type": "COSINE",
-                    "params": {"ef": settings.MILVUS_SEARCH_EF},
-                },
-                limit=top_k * 2,
-                expr=expr,
-                output_fields=output_fields,
-            )
-        except Exception as e:
-            logger.error(f"Milvus search failed for {source}: {e}")
-            return []
-
         dense_hits = []
-        if dense_results and dense_results[0]:
-            for hit in dense_results[0]:
-                chunk_id = self._extract_field(hit, "chunk_id")
-                document_id = self._extract_field(hit, "document_id")
-                text = self._extract_field(hit, "text")
-                doc_version = self._extract_field(hit, "doc_version")
-                visa_type = self._extract_field(hit, "visa_type")
+        for expr in self._document_id_exprs(document_ids):
+            try:
+                dense_results = collection.search(
+                    data=[query_embedding],
+                    anns_field="embedding",
+                    param={
+                        "metric_type": "COSINE",
+                        "params": {"ef": settings.MILVUS_SEARCH_EF},
+                    },
+                    limit=top_k * 2,
+                    expr=expr,
+                    output_fields=output_fields,
+                )
+            except Exception as e:
+                logger.error(f"Milvus search failed for {source}: {e}")
+                continue
 
-                if source == "law":
-                    section = self._extract_field(hit, "section")
-                    clause = self._extract_field(hit, "clause")
-                else:
-                    section = None
-                    clause = None
+            if dense_results and dense_results[0]:
+                for hit in dense_results[0]:
+                    chunk_id = self._extract_field(hit, "chunk_id")
+                    document_id = self._extract_field(hit, "document_id")
+                    text = self._extract_field(hit, "text")
+                    doc_version = self._extract_field(hit, "doc_version")
+                    visa_type = self._extract_field(hit, "visa_type")
 
-                dense_hits.append({
-                    "chunk_id": chunk_id,
-                    "document_id": document_id,
-                    "text": text,
-                    "section": section,
-                    "clause": clause,
-                    "doc_version": doc_version,
-                    "visa_type": visa_type,
-                    "vector_score": hit.score,
-                })
+                    if source == "law":
+                        section = self._extract_field(hit, "section")
+                        clause = self._extract_field(hit, "clause")
+                    else:
+                        section = None
+                        clause = None
+
+                    dense_hits.append({
+                        "chunk_id": chunk_id,
+                        "document_id": document_id,
+                        "text": text,
+                        "section": section,
+                        "clause": clause,
+                        "doc_version": doc_version,
+                        "visa_type": visa_type,
+                        "vector_score": hit.score,
+                    })
 
         if not dense_hits:
             return []
