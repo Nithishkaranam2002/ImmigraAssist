@@ -50,6 +50,10 @@ def _install_dependency_stubs():
     milvus_module.get_cases_collection = lambda: None
     sys.modules["app.db.milvus"] = milvus_module
 
+    metadata_filter_module = types.ModuleType("app.retrieval.metadata_filter")
+    metadata_filter_module.FilterContext = object
+    sys.modules["app.retrieval.metadata_filter"] = metadata_filter_module
+
     langchain_openai_module = types.ModuleType("langchain_openai")
     langchain_openai_module.OpenAIEmbeddings = object
     sys.modules["langchain_openai"] = langchain_openai_module
