@@ -134,17 +134,28 @@ export function ChatPage() {
         })
         applyResponse(response)
       } else {
+        let usedFallback = false
+        const runFallback = async (msg: string) => {
+          if (usedFallback) {
+            updateLastAssistant({ content: msg || "Something went wrong. Please try again." })
+            return
+          }
+          usedFallback = true
+          updateLastAssistant({ content: "Generating answer…", isStreaming: false })
+          try {
+            const response = await chatService.query(baseReq)
+            applyResponse(response)
+          } catch (err: unknown) {
+            updateLastAssistant({
+              content: getApiErrorMessage(err, msg || "Something went wrong. Please try again."),
+            })
+          }
+        }
+
         await chatService.queryStream(baseReq, {
           onChunk: (chunk) => appendToLastAssistant(chunk),
           onDone: (response) => applyResponse(response),
-          onError: async (msg) => {
-            try {
-              const response = await chatService.query(baseReq)
-              applyResponse(response)
-            } catch {
-              updateLastAssistant({ content: msg || "Something went wrong. Please try again." })
-            }
-          },
+          onError: (msg) => runFallback(msg),
         })
       }
     } catch (err: unknown) {

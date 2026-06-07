@@ -1,6 +1,6 @@
 import re
 from dataclasses import dataclass
-from app.guardrails.pii_detector import PIIDetector
+from app.guardrails.pii_detector import get_pii_detector
 from app.retrieval.context_builder import BuiltContext
 from app.utils.logger import logger
 
@@ -27,7 +27,7 @@ class SanitizedOutput:
 class OutputSanitizer:
 
     def __init__(self):
-        self.pii_detector = PIIDetector()
+        self.pii_detector = get_pii_detector()
 
     def sanitize(
         self,

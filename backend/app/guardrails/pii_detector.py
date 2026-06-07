@@ -65,14 +65,24 @@ class PIIDetector:
 
     def __init__(self):
         self.model = None
-        if GLINER_AVAILABLE:
-            try:
-                from app.config import settings
-                self.model = GLiNER.from_pretrained(settings.GLINER_MODEL)
-                logger.info(f"GLiNER model loaded successfully")
-            except Exception as e:
-                logger.error(f"Failed to load GLiNER model: {e}")
-                self.model = None
+        self._model_load_attempted = False
+
+    def _ensure_model(self) -> None:
+        """Load GLiNER only when enabled — avoids ~60s startup on small servers."""
+        if self._model_load_attempted:
+            return
+        self._model_load_attempted = True
+
+        from app.config import settings
+        if not settings.USE_GLINER_PII or not GLINER_AVAILABLE:
+            return
+
+        try:
+            self.model = GLiNER.from_pretrained(settings.GLINER_MODEL)
+            logger.info("GLiNER model loaded successfully")
+        except Exception as e:
+            logger.error(f"Failed to load GLiNER model: {e}")
+            self.model = None
 
     def detect_and_redact(self, text: str) -> PIIDetectionResult:
         """
@@ -88,6 +98,8 @@ class PIIDetector:
             )
 
         from app.config import settings
+
+        self._ensure_model()
 
         # Fast path: regex is sufficient for typical immigration queries
         if not settings.USE_GLINER_PII or self.model is None:
@@ -236,3 +248,13 @@ class PIIDetector:
             found_entities=all_entities + regex_result.found_entities,
             pii_found=len(all_entities) > 0 or regex_result.pii_found,
         )
+
+
+_pii_detector: PIIDetector | None = None
+
+
+def get_pii_detector() -> PIIDetector:
+    global _pii_detector
+    if _pii_detector is None:
+        _pii_detector = PIIDetector()
+    return _pii_detector

@@ -48,14 +48,28 @@ export interface StreamCallbacks {
   onError: (message: string) => void
 }
 
+function streamErrorMessage(status: number, detail: unknown): string {
+  if (status === 401) return "Session expired. Please log in again."
+  if (status === 429) return "Too many requests. Please wait a moment and try again."
+  if (status === 502 || status === 503 || status === 504) {
+    return "Server is starting up. Please wait 30 seconds and try again."
+  }
+  return formatApiDetail(detail, "Request failed")
+}
+
 export const chatService = {
   async query(data: QueryRequest): Promise<QueryResponse> {
-    const response = await api.post<QueryResponse>("/chat/query", data)
+    const response = await api.post<QueryResponse>("/chat/query", { ...data, stream: false })
     return response.data
   },
 
   async queryStream(data: QueryRequest, callbacks: StreamCallbacks): Promise<void> {
     const token = localStorage.getItem("access_token")
+    if (!token) {
+      callbacks.onError("Session expired. Please log in again.")
+      return
+    }
+
     const res = await fetch("/api/v1/chat/query", {
       method: "POST",
       headers: {
@@ -67,7 +81,7 @@ export const chatService = {
 
     if (!res.ok) {
       const err = await res.json().catch(() => ({ detail: "Request failed" }))
-      callbacks.onError(formatApiDetail(err.detail, "Request failed"))
+      callbacks.onError(streamErrorMessage(res.status, err.detail))
       return
     }
 
@@ -79,6 +93,7 @@ export const chatService = {
 
     const decoder = new TextDecoder()
     let buffer = ""
+    let completed = false
 
     while (true) {
       const { done, value } = await reader.read()
@@ -91,21 +106,32 @@ export const chatService = {
       for (const line of lines) {
         if (!line.startsWith("data: ")) continue
         const payload = line.slice(6).trim()
-        if (payload === "[DONE]") return
+        if (payload === "[DONE]") {
+          if (!completed) {
+            callbacks.onError("Response ended unexpectedly. Retrying…")
+          }
+          return
+        }
 
         try {
           const event = JSON.parse(payload)
           if (event.type === "chunk") {
             callbacks.onChunk(event.content)
           } else if (event.type === "done") {
+            completed = true
             callbacks.onDone(event as QueryResponse)
           } else if (event.type === "error") {
-            callbacks.onError(event.message)
+            callbacks.onError(event.message || "Something went wrong. Please try again.")
+            return
           }
         } catch {
           // skip malformed lines
         }
       }
+    }
+
+    if (!completed) {
+      callbacks.onError("Response ended unexpectedly. Retrying…")
     }
   },
 

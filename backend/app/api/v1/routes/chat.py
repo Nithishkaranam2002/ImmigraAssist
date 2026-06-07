@@ -15,7 +15,7 @@ from app.db.models.chat_query_meta import ChatQueryMeta
 from app.db.models.review_item import ReviewItem
 from app.api.v1.dependencies import get_current_user
 from app.guardrails.content_moderator import ContentModerator
-from app.guardrails.pii_detector import PIIDetector
+from app.guardrails.pii_detector import get_pii_detector
 from app.guardrails.output_sanitizer import OutputSanitizer
 from app.retrieval.metadata_filter import MetadataFilter
 from app.retrieval.hybrid_retriever import HybridRetriever
@@ -35,7 +35,7 @@ from app.utils.logger import logger
 router = APIRouter(prefix="/chat", tags=["chat"])
 
 moderator = ContentModerator()
-pii_detector = PIIDetector()
+pii_detector = get_pii_detector()
 output_sanitizer = OutputSanitizer()
 metadata_filter = MetadataFilter()
 hybrid_retriever = HybridRetriever()
