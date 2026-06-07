@@ -77,7 +77,8 @@ def run_scrapers_task(
 def run_missing_policy_task(self):
     """Scrape only policy chapter URLs not yet recorded."""
     from sqlalchemy import select
-    from app.scrapers.uscis_policy_scraper import USCISPolicyScraper, DIRECT_CHAPTER_URLS
+    from app.scrapers.uscis_policy_scraper import USCISPolicyScraper
+    from app.scrapers.policy_urls import DIRECT_CHAPTER_URLS
     from app.db.models.scrape_record import ScrapeRecord
 
     async def _run():
@@ -115,24 +116,3 @@ def run_missing_policy_task(self):
     return self.loop.run_until_complete(_run())
 
 
-# add to beat schedule in celery_app.py
-SCRAPER_BEAT_SCHEDULE = {
-    "scrape-news-daily": {
-        "task": "app.tasks.scraper_task.run_scrapers_task",
-        "schedule": 86400.0,  # every 24 hours
-        "kwargs": {
-            "scrape_policy": False,
-            "scrape_news": True,
-            "scrape_bia": False,
-        },
-    },
-    "scrape-full-weekly": {
-        "task": "app.tasks.scraper_task.run_scrapers_task",
-        "schedule": 604800.0,  # every 7 days
-        "kwargs": {
-            "scrape_policy": True,
-            "scrape_news": True,
-            "scrape_bia": True,
-        },
-    },
-}

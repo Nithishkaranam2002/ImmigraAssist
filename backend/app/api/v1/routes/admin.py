@@ -153,7 +153,7 @@ async def data_completeness(
     current_user: User = Depends(require_role(UserRole.ADMIN)),
 ):
     """Compare indexed data against target corpus sizes."""
-    from app.scrapers.uscis_policy_scraper import DIRECT_CHAPTER_URLS
+    from app.scrapers.policy_urls import DIRECT_CHAPTER_URLS, POLICY_CHAPTER_TARGET
 
     doc_by_type = await db.execute(
         select(Document.doc_type, func.count(Document.id), func.sum(Document.total_chunks))
@@ -177,7 +177,27 @@ async def data_completeness(
         select(func.count(ScrapeRecord.id)).where(ScrapeRecord.source_type == "uscis_policy")
     )
     policy_scraped = scraped_policy_urls.scalar() or 0
-    policy_target = len(DIRECT_CHAPTER_URLS)
+    policy_target = max(POLICY_CHAPTER_TARGET, len(DIRECT_CHAPTER_URLS))
+
+    policy_success = await db.execute(
+        select(func.count(ScrapeRecord.id)).where(
+            ScrapeRecord.source_type == "uscis_policy",
+            ScrapeRecord.status.in_([
+                ScrapeStatus.NEW,
+                ScrapeStatus.CHANGED,
+                ScrapeStatus.UNCHANGED,
+            ]),
+        )
+    )
+    policy_success_count = policy_success.scalar() or 0
+
+    policy_failed = await db.execute(
+        select(func.count(ScrapeRecord.id)).where(
+            ScrapeRecord.source_type == "uscis_policy",
+            ScrapeRecord.status == ScrapeStatus.FAILED,
+        )
+    )
+    policy_failed_count = policy_failed.scalar() or 0
 
     milvus = {}
     try:
@@ -206,8 +226,11 @@ async def data_completeness(
         "scrape_records": scrape_stats,
         "policy_chapters": {
             "scraped": policy_scraped,
+            "ingested_success": policy_success_count,
+            "failed": policy_failed_count,
+            "fallback_urls": len(DIRECT_CHAPTER_URLS),
             "target": policy_target,
-            "missing": max(0, policy_target - policy_scraped),
+            "missing_estimate": max(0, policy_target - policy_success_count),
         },
         "completeness_pct": round(
             (milvus.get("laws", 0) + milvus.get("cases", 0)) / 6597 * 100, 1

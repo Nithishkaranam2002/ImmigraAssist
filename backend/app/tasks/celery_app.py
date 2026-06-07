@@ -49,5 +49,9 @@ celery_app.conf.update(
                 "scrape_bia": True,
             },
         },
+        "scrape-missing-policy-daily": {
+            "task": "app.tasks.scraper_task.run_missing_policy_task",
+            "schedule": 86400.0,
+        },
     },
 )

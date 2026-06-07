@@ -62,8 +62,8 @@ class USCISNewsScraper:
                 article_urls = list(set(article_urls))
                 logger.info(f"Total news articles found: {len(article_urls)}")
 
-                # limit to latest 50 articles
-                article_urls = article_urls[:50]
+                # limit to latest 100 articles
+                article_urls = article_urls[:100]
 
                 # scrape articles in batches of 2 (more reliable on small servers)
                 for i in range(0, len(article_urls), 2):

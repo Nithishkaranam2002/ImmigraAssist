@@ -136,7 +136,7 @@ services:
       context: ./backend
       dockerfile: Dockerfile
     container_name: immigraassist_celery
-    command: celery -A celery_worker worker --loglevel=info --concurrency=4
+    command: celery -A celery_worker worker --loglevel=info --concurrency=2
     env_file:
       - ./backend/.env
     environment:

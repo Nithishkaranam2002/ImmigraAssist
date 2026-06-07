@@ -19,6 +19,8 @@ class ParsedDocument:
     pages: list[ParsedPage]
     total_pages: int
     doc_title: str
+    doc_section: Optional[str] = None
+    source_url: Optional[str] = None
 
 
 class PDFParser:
@@ -50,29 +52,45 @@ class PDFParser:
             with open(file_path, "r", encoding="utf-8", errors="ignore") as f:
                 text = f.read()
 
-            text = self._clean_text(text)
             doc_title = file_path.split("/")[-1].replace(".txt", "")
+            doc_section = None
+            source_url = None
+            body = text
 
-            # extract title from content if available
             lines = text.split("\n")
-            for line in lines[:5]:
-                if line.startswith("TITLE:"):
-                    doc_title = line.replace("TITLE:", "").strip()
+            header_end = 0
+            for i, line in enumerate(lines):
+                stripped = line.strip()
+                if stripped.startswith("TITLE:"):
+                    doc_title = stripped.replace("TITLE:", "").strip()
+                elif stripped.startswith("SECTION:"):
+                    doc_section = stripped.replace("SECTION:", "").strip()
+                elif stripped.startswith("URL:"):
+                    source_url = stripped.replace("URL:", "").strip()
+                elif stripped.startswith("=" * 20):
+                    header_end = i + 1
                     break
+
+            if header_end:
+                body = "\n".join(lines[header_end:])
+
+            body = self._clean_text(body)
 
             pages = [ParsedPage(
                 page_number=1,
-                text=text,
-                headings=self._extract_headings(text),
+                text=body,
+                headings=self._extract_headings(body),
             )]
 
-            logger.info(f"Parsed text file: '{doc_title}' ({len(text)} chars)")
+            logger.info(f"Parsed text file: '{doc_title}' ({len(body)} chars)")
 
             return ParsedDocument(
-                raw_text=text,
+                raw_text=body,
                 pages=pages,
                 total_pages=1,
                 doc_title=doc_title,
+                doc_section=doc_section,
+                source_url=source_url,
             )
 
         except Exception as e:
