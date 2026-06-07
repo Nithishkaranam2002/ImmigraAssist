@@ -1,6 +1,6 @@
 import { useState, useRef, useEffect } from "react"
 import { Link, useSearchParams } from "react-router-dom"
-import { useQuery } from "@tanstack/react-query"
+import { useQuery, useQueryClient } from "@tanstack/react-query"
 import {
   Send,
   Loader2,
@@ -24,6 +24,7 @@ import { Badge } from "@/components/ui/badge"
 import { ReferencesPanel } from "@/components/chat/ReferencesPanel"
 import { HistorySidebar } from "@/components/chat/HistorySidebar"
 import { ConfidenceBadge } from "@/components/chat/ConfidenceBadge"
+import { AddToMatterDialog } from "@/components/chat/AddToMatterDialog"
 import { chatService } from "@/services/chatService"
 import { matterService } from "@/services/matterService"
 import { platformService } from "@/services/platformService"
@@ -61,7 +62,9 @@ export function ChatPage() {
   const [feedbackSent, setFeedbackSent] = useState<Set<string>>(new Set())
   const [showReferences, setShowReferences] = useState(false)
   const [historyId, setHistoryId] = useState<string>()
+  const [showAddToMatter, setShowAddToMatter] = useState(false)
   const bottomRef = useRef<HTMLDivElement>(null)
+  const qc = useQueryClient()
 
   const {
     messages,
@@ -235,6 +238,23 @@ export function ChatPage() {
 
   const lastAssistant = [...messages].reverse().find((m) => m.role === "assistant")
 
+  const auditLogIds = messages
+    .filter((m) => m.role === "assistant" && m.audit_log_id && !m.isStreaming)
+    .map((m) => m.audit_log_id!)
+
+  const hasCompletedAnswer = messages.some(
+    (m) => m.role === "assistant" && !m.isStreaming && m.content.trim().length > 0
+  )
+
+  const canSaveToMatter = !matterId && hasCompletedAnswer && !isLoading
+
+  const firstUserQuery = messages.find((m) => m.role === "user")?.content
+  const suggestedTitle = firstUserQuery
+    ? firstUserQuery.length > 60
+      ? `${firstUserQuery.slice(0, 57)}...`
+      : firstUserQuery
+    : undefined
+
   return (
     <div className="flex h-full relative">
       <HistorySidebar onSelect={handleHistorySelect} activeId={historyId} />
@@ -281,6 +301,11 @@ export function ChatPage() {
                 <FileText className="w-4 h-4 mr-1" /> Doc Q&A
               </Button>
             )}
+            {canSaveToMatter && (
+              <Button size="sm" onClick={() => setShowAddToMatter(true)}>
+                <Briefcase className="w-4 h-4 mr-1" /> Save to matter
+              </Button>
+            )}
             {lastAssistant && canExport(user?.role) && (
               <Button variant="outline" size="sm" onClick={() => downloadMemo(messages)}>
                 <Download className="w-4 h-4 mr-1" /> Export
@@ -309,6 +334,18 @@ export function ChatPage() {
             )}
           </div>
         </div>
+
+        {canSaveToMatter && (
+          <div className="px-4 sm:px-6 py-2.5 border-b border-amber-100 bg-amber-50/70 flex items-center justify-between gap-3 flex-wrap">
+            <p className="text-sm text-amber-900">
+              Save this research to a client matter for organized case files and history.
+            </p>
+            <Button size="sm" variant="outline" onClick={() => setShowAddToMatter(true)}>
+              <Briefcase className="w-4 h-4 mr-1.5" />
+              Save to matter
+            </Button>
+          </div>
+        )}
 
         {activeMatter && (
           <div className="px-4 sm:px-6 py-2.5 border-b border-brand-100 bg-brand-50/80 flex items-center justify-between gap-2 flex-wrap">
@@ -458,7 +495,7 @@ export function ChatPage() {
                         </div>
                       ) : null}
                     </div>
-                    {message.audit_log_id && !message.isStreaming && (
+                    {!message.isStreaming && message.content.trim() && (
                       <div className="px-5 py-3 border-t border-slate-100 flex items-center justify-between bg-slate-50/50">
                         <span className="text-xs text-slate-400">
                           {(message.response_time_ms ?? 0) > 0
@@ -466,6 +503,17 @@ export function ChatPage() {
                             : "—"}
                         </span>
                         <div className="flex items-center gap-2">
+                          {canSaveToMatter && (
+                            <button
+                              type="button"
+                              onClick={() => setShowAddToMatter(true)}
+                              className="text-xs text-brand-600 hover:text-brand-800 font-medium mr-2"
+                            >
+                              Save to matter
+                            </button>
+                          )}
+                          {message.audit_log_id ? (
+                            <>
                           <span className="text-xs text-slate-400">Helpful?</span>
                           <button
                             type="button"
@@ -493,6 +541,8 @@ export function ChatPage() {
                           >
                             <ThumbsDown className="w-3.5 h-3.5" />
                           </button>
+                            </>
+                          ) : null}
                         </div>
                       </div>
                     )}
@@ -561,6 +611,19 @@ export function ChatPage() {
           </div>
         </>
       )}
+
+      <AddToMatterDialog
+        open={showAddToMatter}
+        onOpenChange={setShowAddToMatter}
+        sessionId={sessionId}
+        auditLogIds={auditLogIds}
+        suggestedTitle={suggestedTitle}
+        suggestedVisa={lastAssistant?.visa_type_detected || undefined}
+        onAttached={(id) => {
+          setMatterId(id)
+          qc.invalidateQueries({ queryKey: ["matters"] })
+        }}
+      />
     </div>
   )
 }

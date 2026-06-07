@@ -43,4 +43,17 @@ export const matterService = {
   async remove(id: string) {
     await api.delete(`/matters/${id}`)
   },
+
+  async attachResearch(data: {
+    matter_id?: string
+    title?: string
+    client_name?: string
+    visa_type?: string
+    description?: string
+    audit_log_ids: string[]
+    session_id: string
+  }): Promise<{ matter_id: string; title: string; attached_count: number }> {
+    const res = await api.post("/matters/attach-research", data)
+    return res.data
+  },
 }

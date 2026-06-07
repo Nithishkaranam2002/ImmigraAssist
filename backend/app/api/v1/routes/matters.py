@@ -2,6 +2,7 @@ from datetime import datetime, timezone
 from fastapi import APIRouter, Depends, HTTPException
 from sqlalchemy.ext.asyncio import AsyncSession
 from sqlalchemy import select, func
+from app.db.models.audit_log import AuditLog
 from app.db.models.chat_query_meta import ChatQueryMeta
 from pydantic import BaseModel
 from typing import Optional
@@ -27,6 +28,17 @@ class MatterUpdate(BaseModel):
     visa_type: Optional[str] = None
     description: Optional[str] = None
     status: Optional[str] = None
+
+
+class AttachResearchRequest(BaseModel):
+    """Save chat research to a new or existing matter."""
+    matter_id: Optional[UUID] = None
+    title: Optional[str] = None
+    client_name: Optional[str] = None
+    visa_type: Optional[str] = None
+    description: Optional[str] = None
+    audit_log_ids: list[UUID] = []
+    session_id: Optional[UUID] = None
 
 
 @router.get("/")
@@ -80,6 +92,84 @@ async def get_matter(
         "status": matter.status,
         "created_at": str(matter.created_at),
         "updated_at": str(matter.updated_at) if matter.updated_at else None,
+    }
+
+
+@router.post("/attach-research")
+async def attach_research(
+    body: AttachResearchRequest,
+    db: AsyncSession = Depends(get_db),
+    current_user: User = Depends(get_current_user),
+):
+    """Create or select a matter and link chat queries from this session."""
+    if body.matter_id:
+        result = await db.execute(
+            select(Matter).where(Matter.id == body.matter_id, Matter.user_id == current_user.id)
+        )
+        matter = result.scalars().first()
+        if not matter:
+            raise HTTPException(404, "Matter not found")
+    else:
+        if not body.title or not body.title.strip():
+            raise HTTPException(400, "Title is required when creating a new matter")
+        matter = Matter(
+            user_id=current_user.id,
+            title=body.title.strip(),
+            client_name=body.client_name,
+            visa_type=body.visa_type,
+            description=body.description,
+        )
+        db.add(matter)
+        await db.flush()
+
+    audit_ids: list[UUID] = list(body.audit_log_ids)
+    if body.session_id and not audit_ids:
+        result = await db.execute(
+            select(ChatQueryMeta.audit_log_id)
+            .join(AuditLog, AuditLog.id == ChatQueryMeta.audit_log_id)
+            .where(
+                ChatQueryMeta.session_id == body.session_id,
+                AuditLog.user_id == current_user.id,
+            )
+        )
+        audit_ids = [row[0] for row in result.fetchall()]
+
+    if not audit_ids:
+        raise HTTPException(400, "No research queries to attach")
+
+    attached = 0
+    for audit_id in audit_ids:
+        log_result = await db.execute(
+            select(AuditLog).where(AuditLog.id == audit_id, AuditLog.user_id == current_user.id)
+        )
+        if not log_result.scalars().first():
+            continue
+
+        meta_result = await db.execute(
+            select(ChatQueryMeta).where(ChatQueryMeta.audit_log_id == audit_id)
+        )
+        meta = meta_result.scalars().first()
+        if meta:
+            meta.matter_id = matter.id
+            attached += 1
+        else:
+            db.add(
+                ChatQueryMeta(
+                    audit_log_id=audit_id,
+                    matter_id=matter.id,
+                    session_id=body.session_id,
+                    query_mode="standard",
+                )
+            )
+            attached += 1
+
+    matter.updated_at = datetime.now(timezone.utc)
+    await db.commit()
+
+    return {
+        "matter_id": str(matter.id),
+        "title": matter.title,
+        "attached_count": attached,
     }
 
 
