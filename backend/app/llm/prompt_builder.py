@@ -125,12 +125,17 @@ When the user switches to a clearly new topic, answer the new topic directly.
 
 ## FOLLOW-UP MODE
 The user's question refers to the immediately preceding exchange in PREVIOUS CONVERSATION.
-Answer specifically about THAT topic — not a generic catalog of unrelated immigration forms or benefits.
-Do NOT repeat eligibility criteria already covered in the prior answer unless the user asks again.
-For forms questions, structure the ANSWER as:
+Answer the specific concept the user asked about in their CURRENT question.
+Do NOT repeat a prior answer verbatim (e.g. do not re-list Form I-765 if the user now asks about AC21 evidence).
+Do NOT give a generic catalog of unrelated immigration forms or benefits.
+"""
+
+    FOLLOW_UP_FORMS_ADDENDUM = """
+
+## FORMS FOLLOW-UP
+Structure the ANSWER as:
 ### Required USCIS Forms (form number, category code if applicable, purpose)
 ### Supporting Evidence Documents
-Name only the forms, evidence, and filing steps relevant to the prior question.
 For H-4 EAD filings, the Required USCIS Forms section MUST state:
 - Form I-765 — category (c)(26)
 The Supporting Evidence Documents section MUST include:
@@ -147,6 +152,7 @@ Only add renewal-specific items (prior EAD, I-797C receipt) when the user asks a
         visa_type: str | None = None,
         query_mode: str = "standard",
         is_follow_up: bool = False,
+        is_forms_follow_up: bool = False,
         prior_query: str | None = None,
         has_conversation: bool = False,
     ) -> BuiltPrompt:
@@ -156,6 +162,7 @@ Only add renewal-specific items (prior EAD, I-797C receipt) when the user asks a
             visa_type,
             query_mode,
             is_follow_up=is_follow_up,
+            is_forms_follow_up=is_forms_follow_up,
             prior_query=prior_query,
             has_conversation=has_conversation,
         )
@@ -169,6 +176,8 @@ Only add renewal-specific items (prior EAD, I-797C receipt) when the user asks a
                 system += self.CONVERSATION_ADDENDUM
             if is_follow_up:
                 system += self.FOLLOW_UP_ADDENDUM
+            if is_forms_follow_up:
+                system += self.FOLLOW_UP_FORMS_ADDENDUM
 
         return BuiltPrompt(
             system_message=system,
@@ -181,6 +190,7 @@ Only add renewal-specific items (prior EAD, I-797C receipt) when the user asks a
         query: str,
         visa_type: str | None,
         is_follow_up: bool = False,
+        is_forms_follow_up: bool = False,
         prior_query: str | None = None,
     ) -> str:
         """Query-specific completeness checklist for the model."""
@@ -190,9 +200,9 @@ Only add renewal-specific items (prior EAD, I-797C receipt) when the user asks a
         h4_context = visa_type in ("h4", "h4_ead") or (
             prior_query and re.search(r"\bh[-\s]?4\b", prior_query, re.I)
         )
-        if is_follow_up and re.search(r"\b(form|file|filing|document|evidence)\b", q):
+        if is_forms_follow_up:
             hint = (
-                "Follow-up forms query — list ONLY forms and supporting documents for the "
+                "Forms follow-up — list ONLY USCIS forms and supporting documents for the "
                 "benefit discussed in the prior question. Do not repeat prior eligibility rules."
             )
             if h4_context:
@@ -201,6 +211,19 @@ Only add renewal-specific items (prior EAD, I-797C receipt) when the user asks a
                     "approved Form I-140 notice OR AC21 evidence; Form I-94."
                 )
             hints.append(hint)
+
+        if re.search(r"\bac21\b", q, re.I):
+            hints.append(
+                "AC21 evidence query — explain what documentation proves the H-1B principal "
+                "meets AC21 §106(a) or §106(b) eligibility for H-4 EAD (per retrieved sources). "
+                "Do NOT repeat the Form I-765 filing checklist unless the user asks for forms."
+            )
+
+        if re.search(r"\bi[-\s]?140\b", q, re.I) and re.search(r"\bevidence\b", q, re.I):
+            hints.append(
+                "I-140 evidence query — explain what approval notice or petition documentation "
+                "demonstrates the principal's approved Form I-140 for H-4 EAD purposes."
+            )
 
         if re.search(r"\b(cap|lottery|registration)\b", q) and (
             re.search(r"\bh[-\s]?1b\b", q) or visa_type == "h1b"
@@ -248,6 +271,7 @@ Only add renewal-specific items (prior EAD, I-797C receipt) when the user asks a
         visa_type: str | None,
         query_mode: str = "standard",
         is_follow_up: bool = False,
+        is_forms_follow_up: bool = False,
         prior_query: str | None = None,
         has_conversation: bool = False,
     ) -> str:
@@ -265,11 +289,15 @@ Only add renewal-specific items (prior EAD, I-797C receipt) when the user asks a
         if is_follow_up and prior_query:
             parts.append(
                 f"## FOLLOW-UP CONTEXT\nPrior question: {prior_query}\n"
-                f"The current question continues that thread. Answer narrowly for that benefit/pathway."
+                f"Answer the user's CURRENT question directly — not a copy of a prior answer."
             )
 
         topic_guidance = self._topic_guidance(
-            query, visa_type, is_follow_up=is_follow_up, prior_query=prior_query
+            query,
+            visa_type,
+            is_follow_up=is_follow_up,
+            is_forms_follow_up=is_forms_follow_up,
+            prior_query=prior_query,
         )
         if topic_guidance:
             parts.append(topic_guidance)
@@ -302,12 +330,15 @@ Only add renewal-specific items (prior EAD, I-797C receipt) when the user asks a
                 f"recommend revisions. Use retrieved law/case sources to support each issue."
             )
         elif is_follow_up:
-            parts.append(
-                f"## QUESTION\n{query}\n\n"
-                f"Answer this follow-up about the prior exchange only. Stay on the same topic; "
-                f"do not list unrelated forms or repeat eligibility from the prior answer. "
-                f"For forms questions, lead with required USCIS form numbers and category codes."
+            instruction = (
+                f"Answer this follow-up using PREVIOUS CONVERSATION for context. "
+                f"Respond to the specific concept in the current question."
             )
+            if is_forms_follow_up:
+                instruction += " Lead with required USCIS form numbers and category codes."
+            else:
+                instruction += " Do not repeat a prior forms checklist unless the user asked for forms."
+            parts.append(f"## QUESTION\n{query}\n\n{instruction}")
         else:
             parts.append(
                 f"## QUESTION\n{query}\n\n"

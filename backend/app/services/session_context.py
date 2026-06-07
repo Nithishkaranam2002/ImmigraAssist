@@ -80,6 +80,36 @@ def _visa_families_differ(left: str, right: str) -> bool:
     return VISA_FAMILY.get(left, left) != VISA_FAMILY.get(right, right)
 
 
+FORMS_FOLLOW_UP_RE = re.compile(
+    r"\b("
+    r"what\s+forms?|which\s+forms?|forms?\s+(are\s+)?needed|needed\s+for\s+that|"
+    r"what\s+to\s+file|which\s+documents?\s+to\s+file"
+    r")\b",
+    re.IGNORECASE,
+)
+
+EXPLICIT_SUBTOPIC_RE = re.compile(
+    r"\b(ac21|i[-\s]?140|portability|premium\s+processing|lca|perm|prevailing\s+wage)\b",
+    re.IGNORECASE,
+)
+
+SUBTOPIC_RETRIEVAL_CONTEXT: list[tuple[re.Pattern, str]] = [
+    (re.compile(r"\bac21\b", re.I), "H-1B AC21 section 106 H-4 EAD eligibility evidence"),
+    (re.compile(r"\bi[-\s]?140\b", re.I), "H-4 EAD approved Form I-140 immigrant petition evidence"),
+    (re.compile(r"\bportability\b", re.I), "H-1B AC21 portability evidence"),
+]
+
+
+def is_forms_follow_up_query(query: str) -> bool:
+    """True when the user is asking which USCIS forms to file."""
+    return bool(FORMS_FOLLOW_UP_RE.search(query))
+
+
+def has_explicit_subtopic(query: str) -> bool:
+    """True when the user names a specific legal concept to research."""
+    return bool(EXPLICIT_SUBTOPIC_RE.search(query))
+
+
 def is_follow_up_query(query: str, *, has_prior_turns: bool) -> bool:
     """Detect questions that refer to or clarify the prior exchange."""
     if not has_prior_turns:
@@ -130,7 +160,14 @@ def expand_query_for_retrieval(
     new_topic: bool = False,
 ) -> str:
     """Bias retrieval toward the active conversation topic when appropriate."""
-    if new_topic or not session.has_prior_turns or not session.last_query:
+    if new_topic:
+        return query
+
+    for pattern, context in SUBTOPIC_RETRIEVAL_CONTEXT:
+        if pattern.search(query):
+            return f"{context} {query}"
+
+    if not session.has_prior_turns or not session.last_query:
         return query
 
     if is_follow_up_query(query, has_prior_turns=True):

@@ -36,6 +36,7 @@ from app.services.session_context import (
     expand_query_for_retrieval,
     format_session_context,
     is_follow_up_query,
+    is_forms_follow_up_query,
     is_new_topic_query,
 )
 from app.config import settings
@@ -174,7 +175,7 @@ def _conversation_flags(
     *,
     new_topic: bool,
     query_mode: str,
-) -> tuple[bool, bool]:
+) -> tuple[bool, bool, bool]:
     """Derive prompt flags for multi-turn conversation handling."""
     has_conversation = session.has_prior_turns and query_mode != "doc_review"
     is_follow_up = (
@@ -182,7 +183,8 @@ def _conversation_flags(
         and not new_topic
         and is_follow_up_query(clean_query, has_prior_turns=True)
     )
-    return has_conversation, is_follow_up
+    is_forms_follow_up = is_follow_up and is_forms_follow_up_query(clean_query)
+    return has_conversation, is_follow_up, is_forms_follow_up
 
 
 async def _save_query_meta(
@@ -321,7 +323,7 @@ async def _run_pipeline(
             user_id=current_user.id,
         )
 
-    has_conversation, is_follow_up = _conversation_flags(
+    has_conversation, is_follow_up, is_forms_follow_up = _conversation_flags(
         session, clean_query, new_topic=new_topic, query_mode=query_mode
     )
 
@@ -358,6 +360,7 @@ async def _run_pipeline(
         visa_type=filter_context.visa_type,
         query_mode=query_mode,
         is_follow_up=is_follow_up,
+        is_forms_follow_up=is_forms_follow_up,
         prior_query=session.last_query,
         has_conversation=has_conversation,
     )
@@ -492,7 +495,7 @@ async def _stream_pipeline(
                 user_id=current_user.id,
             )
 
-        has_conversation, is_follow_up = _conversation_flags(
+        has_conversation, is_follow_up, is_forms_follow_up = _conversation_flags(
             session, clean_query, new_topic=new_topic, query_mode=query_mode
         )
 
@@ -526,6 +529,7 @@ async def _stream_pipeline(
             visa_type=filter_context.visa_type,
             query_mode=query_mode,
             is_follow_up=is_follow_up,
+            is_forms_follow_up=is_forms_follow_up,
             prior_query=session.last_query,
             has_conversation=has_conversation,
         )

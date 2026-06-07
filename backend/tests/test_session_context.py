@@ -2,6 +2,7 @@ from app.services.session_context import (
     SessionHistory,
     expand_query_for_retrieval,
     is_follow_up_query,
+    is_forms_follow_up_query,
     is_new_topic_query,
 )
 
@@ -57,6 +58,23 @@ def test_same_topic_follow_up_not_new():
         turn_count=1,
     )
     assert not is_new_topic_query("What forms are needed for that?", session)
+
+
+def test_forms_follow_up_detection():
+    assert is_forms_follow_up_query("What forms are needed for that?")
+    assert not is_forms_follow_up_query("What evidence is required for AC21?")
+
+
+def test_ac21_query_expands_with_subtopic_context():
+    session = SessionHistory(
+        text="Q: extension?\nA: ...",
+        last_query="Can you explain the 180 day extension?",
+        last_visa_type="h4",
+        turn_count=2,
+    )
+    expanded = expand_query_for_retrieval("What evidence is required for AC21?", session)
+    assert "AC21" in expanded
+    assert "180 day extension" not in expanded
 
 
 def test_new_topic_skips_retrieval_expansion():
