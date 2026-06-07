@@ -31,10 +31,12 @@ from app.services.answer_quality import assess_and_enhance
 from app.services.form_mapper import get_forms_for_visa
 from app.services.query_cache import get_cached_response, set_cached_response
 from app.services.session_context import (
+    SESSION_HISTORY_TURN_LIMIT,
     SessionHistory,
     expand_query_for_retrieval,
     format_session_context,
     is_follow_up_query,
+    is_new_topic_query,
 )
 from app.config import settings
 from app.utils.logger import logger
@@ -124,7 +126,7 @@ async def _load_session_history(
     db: AsyncSession,
     session_id: UUID,
     user_id: UUID,
-    limit: int = 3,
+    limit: int = SESSION_HISTORY_TURN_LIMIT,
 ) -> SessionHistory:
     result = await db.execute(
         select(AuditLog)
@@ -146,17 +148,41 @@ async def _prepare_query_context(
     clean_query: str,
     session_id: UUID,
     user_id: UUID,
-) -> tuple[SessionHistory, str, object]:
+) -> tuple[SessionHistory, str, object, bool]:
     session = await _load_session_history(db, session_id, user_id)
-    retrieval_query = expand_query_for_retrieval(clean_query, session)
+    new_topic = is_new_topic_query(clean_query, session)
+    retrieval_query = expand_query_for_retrieval(
+        clean_query, session, new_topic=new_topic
+    )
     filter_context = await metadata_filter.build_filter_context(db=db, query=retrieval_query)
 
-    if not filter_context.visa_type and session.last_visa_type:
+    if (
+        not new_topic
+        and not filter_context.visa_type
+        and session.last_visa_type
+    ):
         filter_context = await metadata_filter.apply_visa_override(
             db, filter_context, session.last_visa_type
         )
 
-    return session, retrieval_query, filter_context
+    return session, retrieval_query, filter_context, new_topic
+
+
+def _conversation_flags(
+    session: SessionHistory,
+    clean_query: str,
+    *,
+    new_topic: bool,
+    query_mode: str,
+) -> tuple[bool, bool]:
+    """Derive prompt flags for multi-turn conversation handling."""
+    has_conversation = session.has_prior_turns and query_mode != "doc_review"
+    is_follow_up = (
+        has_conversation
+        and not new_topic
+        and is_follow_up_query(clean_query, has_prior_turns=True)
+    )
+    return has_conversation, is_follow_up
 
 
 async def _save_query_meta(
@@ -288,12 +314,16 @@ async def _run_pipeline(
     extra_context: Optional[str],
 ) -> dict:
     async with session_scope() as db:
-        session, retrieval_query, filter_context = await _prepare_query_context(
+        session, retrieval_query, filter_context, new_topic = await _prepare_query_context(
             db,
             clean_query=clean_query,
             session_id=session_id,
             user_id=current_user.id,
         )
+
+    has_conversation, is_follow_up = _conversation_flags(
+        session, clean_query, new_topic=new_topic, query_mode=query_mode
+    )
 
     law_chunks, case_chunks, court_cases = await _retrieve_all(
         query=retrieval_query,
@@ -318,7 +348,8 @@ async def _run_pipeline(
 
     if session.text:
         context.context_text = (
-            f"## PREVIOUS CONVERSATION\n{session.text}\n\n" + context.context_text
+            f"## PREVIOUS CONVERSATION ({session.turn_count} prior turn{'s' if session.turn_count != 1 else ''})\n"
+            f"{session.text}\n\n" + context.context_text
         )
 
     prompt = prompt_builder.build(
@@ -326,8 +357,9 @@ async def _run_pipeline(
         context=context,
         visa_type=filter_context.visa_type,
         query_mode=query_mode,
-        is_follow_up=is_follow_up_query(clean_query, has_prior_turns=session.has_prior_turns),
+        is_follow_up=is_follow_up,
         prior_query=session.last_query,
+        has_conversation=has_conversation,
     )
 
     gpt_response = await gpt_client.complete(prompt)
@@ -453,12 +485,16 @@ async def _stream_pipeline(
 ):
     try:
         async with session_scope() as db:
-            session, retrieval_query, filter_context = await _prepare_query_context(
+            session, retrieval_query, filter_context, new_topic = await _prepare_query_context(
                 db,
                 clean_query=clean_query,
                 session_id=session_id,
                 user_id=current_user.id,
             )
+
+        has_conversation, is_follow_up = _conversation_flags(
+            session, clean_query, new_topic=new_topic, query_mode=query_mode
+        )
 
         law_chunks, case_chunks, court_cases = await _retrieve_all(
             query=retrieval_query,
@@ -480,7 +516,8 @@ async def _stream_pipeline(
 
         if session.text:
             context.context_text = (
-                f"## PREVIOUS CONVERSATION\n{session.text}\n\n" + context.context_text
+                f"## PREVIOUS CONVERSATION ({session.turn_count} prior turn{'s' if session.turn_count != 1 else ''})\n"
+                f"{session.text}\n\n" + context.context_text
             )
 
         prompt = prompt_builder.build(
@@ -488,8 +525,9 @@ async def _stream_pipeline(
             context=context,
             visa_type=filter_context.visa_type,
             query_mode=query_mode,
-            is_follow_up=is_follow_up_query(clean_query, has_prior_turns=session.has_prior_turns),
+            is_follow_up=is_follow_up,
             prior_query=session.last_query,
+            has_conversation=has_conversation,
         )
 
         full_content = ""

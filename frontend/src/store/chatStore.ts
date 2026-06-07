@@ -121,6 +121,7 @@ export const useChatStore = create<ChatStore>((set) => ({
 
   loadFromHistory: (query, data) =>
     set({
+      sessionId: newSessionId(),
       messages: [
         { id: generateId(), role: "user", content: query, timestamp: new Date() },
         {

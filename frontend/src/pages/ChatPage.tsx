@@ -274,6 +274,11 @@ export function ChatPage() {
                 Sources
               </Button>
             )}
+            {messages.length > 0 && !showDocQA && (
+              <Badge variant="outline" className="text-xs text-slate-500 hidden sm:inline-flex">
+                Session memory active
+              </Badge>
+            )}
             {messages.length > 0 && (
               <Button variant="ghost" size="sm" onClick={clearMessages}>
                 <Trash2 className="w-4 h-4 mr-1" /> Clear

@@ -1,10 +1,41 @@
 import re
 from dataclasses import dataclass
 
+SESSION_HISTORY_TURN_LIMIT = 10
+SESSION_ANSWER_SNIPPET_CHARS = 1200
+
 FOLLOW_UP_RE = re.compile(
-    r"\b(that|those|this|it|same|above|earlier|previous|you\s+said|just\s+mentioned)\b",
+    r"\b("
+    r"that|those|this|it|same|above|earlier|previous|you\s+said|just\s+mentioned|"
+    r"explain|clarify|elaborate|more\s+detail|tell\s+me\s+more|what\s+about|how\s+about|"
+    r"can\s+you|could\s+you|why\s+is|why\s+does|what\s+if|"
+    r"renewal|extension|automatic\s+extension"
+    r")\b",
     re.IGNORECASE,
 )
+
+VISA_IN_QUERY_RE = re.compile(
+    r"\b("
+    r"h[-\s]?1b|h[-\s]?4(?:\s*ead)?|l[-\s]?1[ab]?|o[-\s]?1|"
+    r"eb[-\s]?[123]|f[-\s]?1|asylum|green\s*card|tn\b|e[-\s]?2"
+    r")\b",
+    re.IGNORECASE,
+)
+
+# Treat related codes as the same conversation topic (e.g. h4 vs h4_ead).
+VISA_FAMILY: dict[str, str] = {
+    "h1b": "h1b",
+    "h4": "h4",
+    "h4_ead": "h4",
+    "l1": "l1",
+    "o1": "o1",
+    "eb1": "eb",
+    "eb2": "eb",
+    "eb3": "eb",
+    "f1": "f1",
+    "asylum": "asylum",
+    "green_card": "gc",
+}
 
 
 @dataclass
@@ -12,14 +43,45 @@ class SessionHistory:
     text: str = ""
     last_query: str | None = None
     last_visa_type: str | None = None
+    turn_count: int = 0
 
     @property
     def has_prior_turns(self) -> bool:
-        return bool(self.text)
+        return self.turn_count > 0
+
+
+def detect_visa_in_query(query: str) -> str | None:
+    """Lightweight visa detection for session topic tracking."""
+    q = query.lower()
+    if re.search(r"\bh[-\s]?4\s*ead\b", q):
+        return "h4_ead"
+    if re.search(r"\bh[-\s]?4\b", q):
+        return "h4"
+    if re.search(r"\bh[-\s]?1b\b", q):
+        return "h1b"
+    if re.search(r"\bl[-\s]?1[ab]?\b", q):
+        return "l1"
+    if re.search(r"\bo[-\s]?1\b", q):
+        return "o1"
+    if re.search(r"\beb[-\s]?1\b", q):
+        return "eb1"
+    if re.search(r"\beb[-\s]?2\b", q):
+        return "eb2"
+    if re.search(r"\bf[-\s]?1\b", q):
+        return "f1"
+    if re.search(r"\basylum\b", q):
+        return "asylum"
+    if re.search(r"\bgreen\s*card\b", q):
+        return "green_card"
+    return None
+
+
+def _visa_families_differ(left: str, right: str) -> bool:
+    return VISA_FAMILY.get(left, left) != VISA_FAMILY.get(right, right)
 
 
 def is_follow_up_query(query: str, *, has_prior_turns: bool) -> bool:
-    """Detect short or deictic questions that refer to the prior exchange."""
+    """Detect questions that refer to or clarify the prior exchange."""
     if not has_prior_turns:
         return False
 
@@ -27,35 +89,57 @@ def is_follow_up_query(query: str, *, has_prior_turns: bool) -> bool:
     if FOLLOW_UP_RE.search(q):
         return True
 
-    if len(q.split()) > 8:
+    if len(q.split()) > 12:
         return False
 
-    has_visa = bool(
-        re.search(
-            r"\b(h[-\s]?1b|h[-\s]?4|l[-\s]?1|o[-\s]?1|eb[-\s]?[12]|f[-\s]?1|asylum|green\s*card)\b",
-            q,
-            re.IGNORECASE,
-        )
-    )
-    if has_visa:
+    if detect_visa_in_query(q):
         return False
 
     return bool(
         re.search(
-            r"\b(what|which|how|forms?|needed|requirements?|documents?|steps?|fees?|timeline)\b",
+            r"\b(what|which|how|forms?|needed|requirements?|documents?|steps?|fees?|timeline|mean|difference)\b",
             q,
             re.IGNORECASE,
         )
     )
 
 
-def expand_query_for_retrieval(query: str, session: SessionHistory) -> str:
-    """Bias retrieval toward the prior topic when the user asks a follow-up."""
-    if not is_follow_up_query(query, has_prior_turns=session.has_prior_turns):
+def is_new_topic_query(query: str, session: SessionHistory) -> bool:
+    """True when the user starts a new research thread within the same session."""
+    if not session.has_prior_turns:
+        return True
+
+    q = query.strip()
+    if re.search(r"\b(compare|versus|vs\.?)\b", q, re.IGNORECASE):
+        return True
+
+    detected = detect_visa_in_query(q)
+    if detected and session.last_visa_type and _visa_families_differ(detected, session.last_visa_type):
+        return True
+
+    if len(q.split()) > 12 and not FOLLOW_UP_RE.search(q) and detected:
+        return True
+
+    return False
+
+
+def expand_query_for_retrieval(
+    query: str,
+    session: SessionHistory,
+    *,
+    new_topic: bool = False,
+) -> str:
+    """Bias retrieval toward the active conversation topic when appropriate."""
+    if new_topic or not session.has_prior_turns or not session.last_query:
         return query
-    if not session.last_query:
-        return query
-    return f"{session.last_query} {query}"
+
+    if is_follow_up_query(query, has_prior_turns=True):
+        return f"{session.last_query} {query}"
+
+    if not detect_visa_in_query(query):
+        return f"{session.last_query} {query}"
+
+    return query
 
 
 def format_session_context(logs: list) -> SessionHistory:
@@ -65,7 +149,8 @@ def format_session_context(logs: list) -> SessionHistory:
     last_visa_type: str | None = None
 
     for log in logs:
-        parts.append(f"Q: {log.query}\nA: {(log.answer or '')[:500]}")
+        snippet = (log.answer or "")[:SESSION_ANSWER_SNIPPET_CHARS]
+        parts.append(f"Q: {log.query}\nA: {snippet}")
         last_query = log.query
         if log.visa_type_detected:
             last_visa_type = log.visa_type_detected
@@ -74,4 +159,5 @@ def format_session_context(logs: list) -> SessionHistory:
         text="\n\n".join(parts),
         last_query=last_query,
         last_visa_type=last_visa_type,
+        turn_count=len(logs),
     )
