@@ -30,6 +30,12 @@ from app.services.confidence import compute_confidence
 from app.services.answer_quality import assess_and_enhance
 from app.services.form_mapper import get_forms_for_visa
 from app.services.query_cache import get_cached_response, set_cached_response
+from app.services.session_context import (
+    SessionHistory,
+    expand_query_for_retrieval,
+    format_session_context,
+    is_follow_up_query,
+)
 from app.config import settings
 from app.utils.logger import logger
 
@@ -114,12 +120,12 @@ def _court_cases_response(court_cases) -> list[CourtCase]:
     ]
 
 
-async def _get_session_context(
+async def _load_session_history(
     db: AsyncSession,
     session_id: UUID,
     user_id: UUID,
     limit: int = 3,
-) -> str:
+) -> SessionHistory:
     result = await db.execute(
         select(AuditLog)
         .join(ChatQueryMeta, ChatQueryMeta.audit_log_id == AuditLog.id)
@@ -130,11 +136,27 @@ async def _get_session_context(
         .order_by(AuditLog.created_at.desc())
         .limit(limit)
     )
-    logs = result.scalars().all()
-    parts = []
-    for log in reversed(logs):
-        parts.append(f"Q: {log.query}\nA: {(log.answer or '')[:500]}")
-    return "\n\n".join(parts)
+    logs = list(reversed(result.scalars().all()))
+    return format_session_context(logs)
+
+
+async def _prepare_query_context(
+    db: AsyncSession,
+    *,
+    clean_query: str,
+    session_id: UUID,
+    user_id: UUID,
+) -> tuple[SessionHistory, str, object]:
+    session = await _load_session_history(db, session_id, user_id)
+    retrieval_query = expand_query_for_retrieval(clean_query, session)
+    filter_context = await metadata_filter.build_filter_context(db=db, query=retrieval_query)
+
+    if not filter_context.visa_type and session.last_visa_type:
+        filter_context = await metadata_filter.apply_visa_override(
+            db, filter_context, session.last_visa_type
+        )
+
+    return session, retrieval_query, filter_context
 
 
 async def _save_query_meta(
@@ -266,19 +288,21 @@ async def _run_pipeline(
     extra_context: Optional[str],
 ) -> dict:
     async with session_scope() as db:
-        filter_context = await metadata_filter.build_filter_context(db=db, query=clean_query)
-        session_context = ""
-        if session_id:
-            session_context = await _get_session_context(db, session_id, current_user.id)
+        session, retrieval_query, filter_context = await _prepare_query_context(
+            db,
+            clean_query=clean_query,
+            session_id=session_id,
+            user_id=current_user.id,
+        )
 
     law_chunks, case_chunks, court_cases = await _retrieve_all(
-        query=clean_query,
+        query=retrieval_query,
         filter_context=filter_context,
         visa_type=filter_context.visa_type,
     )
 
-    law_chunks = await reranker.rerank(query=clean_query, chunks=law_chunks)
-    case_chunks = await reranker.rerank(query=clean_query, chunks=case_chunks)
+    law_chunks = await reranker.rerank(query=retrieval_query, chunks=law_chunks)
+    case_chunks = await reranker.rerank(query=retrieval_query, chunks=case_chunks)
     case_chunks = await clustering.cluster_and_select(chunks=case_chunks)
 
     async with session_scope() as db:
@@ -292,9 +316,9 @@ async def _run_pipeline(
     if extra_context:
         context.context_text = extra_context + "\n\n" + context.context_text
 
-    if session_context:
+    if session.text:
         context.context_text = (
-            f"## PREVIOUS CONVERSATION\n{session_context}\n\n" + context.context_text
+            f"## PREVIOUS CONVERSATION\n{session.text}\n\n" + context.context_text
         )
 
     prompt = prompt_builder.build(
@@ -302,6 +326,8 @@ async def _run_pipeline(
         context=context,
         visa_type=filter_context.visa_type,
         query_mode=query_mode,
+        is_follow_up=is_follow_up_query(clean_query, has_prior_turns=session.has_prior_turns),
+        prior_query=session.last_query,
     )
 
     gpt_response = await gpt_client.complete(prompt)
@@ -427,17 +453,21 @@ async def _stream_pipeline(
 ):
     try:
         async with session_scope() as db:
-            filter_context = await metadata_filter.build_filter_context(db=db, query=clean_query)
-            session_context = await _get_session_context(db, session_id, current_user.id)
+            session, retrieval_query, filter_context = await _prepare_query_context(
+                db,
+                clean_query=clean_query,
+                session_id=session_id,
+                user_id=current_user.id,
+            )
 
         law_chunks, case_chunks, court_cases = await _retrieve_all(
-            query=clean_query,
+            query=retrieval_query,
             filter_context=filter_context,
             visa_type=filter_context.visa_type,
         )
 
-        law_chunks = await reranker.rerank(query=clean_query, chunks=law_chunks)
-        case_chunks = await reranker.rerank(query=clean_query, chunks=case_chunks)
+        law_chunks = await reranker.rerank(query=retrieval_query, chunks=law_chunks)
+        case_chunks = await reranker.rerank(query=retrieval_query, chunks=case_chunks)
         case_chunks = await clustering.cluster_and_select(chunks=case_chunks)
 
         async with session_scope() as db:
@@ -448,9 +478,9 @@ async def _stream_pipeline(
                 court_cases=court_cases,
             )
 
-        if session_context:
+        if session.text:
             context.context_text = (
-                f"## PREVIOUS CONVERSATION\n{session_context}\n\n" + context.context_text
+                f"## PREVIOUS CONVERSATION\n{session.text}\n\n" + context.context_text
             )
 
         prompt = prompt_builder.build(
@@ -458,6 +488,8 @@ async def _stream_pipeline(
             context=context,
             visa_type=filter_context.visa_type,
             query_mode=query_mode,
+            is_follow_up=is_follow_up_query(clean_query, has_prior_turns=session.has_prior_turns),
+            prior_query=session.last_query,
         )
 
         full_content = ""

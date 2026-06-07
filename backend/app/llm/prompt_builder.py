@@ -112,14 +112,31 @@ Do NOT give a generic visa overview unless needed to explain an issue.
 Prioritize critique of the client document over retrieved policy summaries.
 """
 
+    FOLLOW_UP_ADDENDUM = """
+
+## FOLLOW-UP MODE
+The user's question refers to the immediately preceding exchange in PREVIOUS CONVERSATION.
+Answer specifically about THAT topic — not a generic catalog of unrelated immigration forms or benefits.
+Name only the forms, evidence, and steps relevant to the prior question.
+"""
+
     def build(
         self,
         query: str,
         context: BuiltContext,
         visa_type: str | None = None,
         query_mode: str = "standard",
+        is_follow_up: bool = False,
+        prior_query: str | None = None,
     ) -> BuiltPrompt:
-        user_message = self._build_user_message(query, context, visa_type, query_mode)
+        user_message = self._build_user_message(
+            query,
+            context,
+            visa_type,
+            query_mode,
+            is_follow_up=is_follow_up,
+            prior_query=prior_query,
+        )
         system = SYSTEM_PROMPT
         if query_mode == "compare":
             system += self.COMPARE_ADDENDUM
@@ -132,10 +149,21 @@ Prioritize critique of the client document over retrieved policy summaries.
             total_chars=len(system) + len(user_message),
         )
 
-    def _topic_guidance(self, query: str, visa_type: str | None) -> str:
+    def _topic_guidance(
+        self,
+        query: str,
+        visa_type: str | None,
+        is_follow_up: bool = False,
+    ) -> str:
         """Query-specific completeness checklist for the model."""
         q = query.lower()
         hints: list[str] = []
+
+        if is_follow_up and re.search(r"\b(form|file|filing|document|evidence)\b", q):
+            hints.append(
+                "Follow-up forms query — list ONLY forms and supporting documents for the "
+                "benefit discussed in the prior question (e.g. H-4 EAD → Form I-765, category (c)(26))."
+            )
 
         if re.search(r"\b(cap|lottery|registration)\b", q) and (
             re.search(r"\bh[-\s]?1b\b", q) or visa_type == "h1b"
@@ -182,13 +210,21 @@ Prioritize critique of the client document over retrieved policy summaries.
         context: BuiltContext,
         visa_type: str | None,
         query_mode: str = "standard",
+        is_follow_up: bool = False,
+        prior_query: str | None = None,
     ) -> str:
         parts = []
 
         if visa_type:
             parts.append(f"## QUERY CONTEXT\nVisa Category: {visa_type.upper().replace('_', '-')}\n")
 
-        topic_guidance = self._topic_guidance(query, visa_type)
+        if is_follow_up and prior_query:
+            parts.append(
+                f"## FOLLOW-UP CONTEXT\nPrior question: {prior_query}\n"
+                f"The current question continues that thread. Answer narrowly for that benefit/pathway."
+            )
+
+        topic_guidance = self._topic_guidance(query, visa_type, is_follow_up=is_follow_up)
         if topic_guidance:
             parts.append(topic_guidance)
 
@@ -218,6 +254,12 @@ Prioritize critique of the client document over retrieved policy summaries.
                 f"Review the CLIENT DOCUMENT section above. Answer the question by critiquing "
                 f"that specific draft — cite problematic lines, list missing evidence, and "
                 f"recommend revisions. Use retrieved law/case sources to support each issue."
+            )
+        elif is_follow_up:
+            parts.append(
+                f"## QUESTION\n{query}\n\n"
+                f"Answer this follow-up about the prior exchange. Stay on the same topic; "
+                f"do not list unrelated forms or benefits. Use the required response format."
             )
         else:
             parts.append(

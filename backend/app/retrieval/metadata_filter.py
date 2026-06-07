@@ -92,6 +92,42 @@ class MetadataFilter:
             case_document_ids=case_doc_ids,
         )
 
+    async def apply_visa_override(
+        self,
+        db: AsyncSession,
+        filter_context: FilterContext,
+        visa_type: str,
+    ) -> FilterContext:
+        """Re-scope document filters when visa type comes from session history."""
+        if filter_context.visa_type or not visa_type:
+            return filter_context
+
+        law_doc_ids = await self._fetch_document_ids(
+            db=db,
+            doc_type=DocumentType.LAW,
+            visa_type=visa_type,
+        )
+        case_doc_ids = await self._fetch_document_ids(
+            db=db,
+            doc_type=DocumentType.CASE,
+            visa_type=visa_type,
+            year_min=filter_context.year_min,
+            year_max=filter_context.year_max,
+        )
+
+        if not law_doc_ids:
+            law_doc_ids = filter_context.law_document_ids
+        if not case_doc_ids:
+            case_doc_ids = filter_context.case_document_ids
+
+        return FilterContext(
+            visa_type=visa_type,
+            year_min=filter_context.year_min,
+            year_max=filter_context.year_max,
+            law_document_ids=law_doc_ids,
+            case_document_ids=case_doc_ids,
+        )
+
     def _detect_visa_type(self, query: str) -> Optional[str]:
         for visa_type, pattern in VISA_PATTERNS.items():
             if pattern.search(query):
@@ -107,6 +143,8 @@ class MetadataFilter:
             return "f1"
         if re.search(r"\bperm\b|labor\s+certification", q):
             return "eb2"
+        if re.search(r"\b(ead|work\s+auth|employment\s+authorization)\b", q):
+            return "h4_ead"
         return None
 
     def _detect_year_range(
