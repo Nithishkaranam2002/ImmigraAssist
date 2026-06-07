@@ -95,6 +95,10 @@ export function ChatPage() {
     if (matterFromUrl) {
       setMatterId(matterFromUrl)
     }
+    const qFromUrl = searchParams.get("q")
+    if (qFromUrl) {
+      setInput(qFromUrl)
+    }
   }, [searchParams, setMatterId])
 
   const activeMatter = matters?.find((m) => m.id === matterId)
@@ -202,6 +206,15 @@ export function ChatPage() {
     }
   }
 
+  const historyFromUrlRef = useRef<string | null>(null)
+  useEffect(() => {
+    const historyFromUrl = searchParams.get("history")
+    if (historyFromUrl && historyFromUrl !== historyFromUrlRef.current) {
+      historyFromUrlRef.current = historyFromUrl
+      handleHistorySelect(historyFromUrl)
+    }
+  }, [searchParams])
+
   const handleFeedback = async (auditLogId: string, isPositive: boolean) => {
     if (feedbackSent.has(auditLogId)) return
     try {
@@ -299,18 +312,22 @@ export function ChatPage() {
 
         {activeMatter && (
           <div className="px-4 sm:px-6 py-2.5 border-b border-brand-100 bg-brand-50/80 flex items-center justify-between gap-2 flex-wrap">
-            <div className="flex flex-col sm:flex-row sm:items-center gap-0.5 sm:gap-2 text-sm text-brand-900 min-w-0 flex-1">
-              <div className="flex items-center gap-2 min-w-0">
+            <div className="min-w-0 flex-1">
+              <div className="flex items-center gap-2 text-sm text-brand-900">
                 <Briefcase className="w-4 h-4 shrink-0 text-brand-600" />
                 <span className="font-medium truncate">Matter: {activeMatter.title}</span>
                 {activeMatter.client_name && (
                   <span className="text-brand-700/80 hidden sm:inline">· {activeMatter.client_name}</span>
                 )}
               </div>
-              {activeMatter.description && (
-                <span className="text-xs text-brand-800/70 truncate hidden md:inline max-w-xl">
-                  {activeMatter.description}
-                </span>
+              {activeMatter.description ? (
+                <p className="text-xs text-brand-800/75 mt-0.5 line-clamp-2 md:line-clamp-1">
+                  AI context: {activeMatter.description}
+                </p>
+              ) : (
+                <p className="text-xs text-amber-700 mt-0.5">
+                  No case notes — add a description on the matter page for personalized answers.
+                </p>
               )}
             </div>
             <Link

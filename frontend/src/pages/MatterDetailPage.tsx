@@ -9,15 +9,18 @@ import {
   Pencil,
   Save,
   X,
+  Sparkles,
 } from "lucide-react"
 import { matterService } from "@/services/matterService"
 import { platformService } from "@/services/platformService"
 import { PageHeader } from "@/components/layout/PageHeader"
 import { Button } from "@/components/ui/button"
 import { Input } from "@/components/ui/input"
-import { Textarea } from "@/components/ui/textarea"
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card"
 import { Badge } from "@/components/ui/badge"
+import { CaseNotesField } from "@/components/matters/CaseNotesField"
+import { VisaTypeSelect } from "@/components/matters/VisaTypeSelect"
+import { MATTER_QUICK_PROMPTS, matterStatusClass, matterStatusLabel } from "@/lib/matterConstants"
 import { toast } from "@/hooks/useToast"
 
 export function MatterDetailPage() {
@@ -65,8 +68,11 @@ export function MatterDetailPage() {
     setEditing(true)
   }
 
-  const openChat = () => {
-    navigate(`/chat?matter=${matterId}`)
+  const openChat = (opts?: { prompt?: string; historyId?: string }) => {
+    const params = new URLSearchParams({ matter: matterId! })
+    if (opts?.prompt) params.set("q", opts.prompt)
+    if (opts?.historyId) params.set("history", opts.historyId)
+    navigate(`/chat?${params}`)
   }
 
   if (isLoading) {
@@ -88,6 +94,8 @@ export function MatterDetailPage() {
     )
   }
 
+  const missingNotes = !matter.description?.trim()
+
   return (
     <div className="h-full overflow-y-auto p-4 sm:p-6 space-y-6">
       <div className="flex items-center gap-2 text-sm text-slate-500">
@@ -100,7 +108,7 @@ export function MatterDetailPage() {
         title={matter.title}
         description={matter.client_name ? `Client: ${matter.client_name}` : "Client matter workspace"}
         action={
-          <div className="flex gap-2">
+          <div className="flex gap-2 flex-wrap">
             {!editing ? (
               <Button variant="outline" size="sm" onClick={startEdit}>
                 <Pencil className="w-4 h-4 mr-1.5" /> Edit
@@ -133,12 +141,25 @@ export function MatterDetailPage() {
                 </Button>
               </>
             )}
-            <Button size="sm" onClick={openChat}>
+            <Button size="sm" onClick={() => openChat()}>
               <MessageSquare className="w-4 h-4 mr-1.5" /> Research this matter
             </Button>
           </div>
         }
       />
+
+      {missingNotes && !editing && (
+        <Card className="border-amber-200 bg-amber-50/50 max-w-3xl">
+          <CardContent className="pt-4 pb-3 flex gap-2 text-sm text-amber-900">
+            <Sparkles className="w-4 h-4 shrink-0 mt-0.5" />
+            <p>
+              Add <strong>case notes</strong> so the AI can personalize answers for this client
+              (e.g. principal&apos;s status, in US or abroad, filing goal). One or two sentences is
+              enough.
+            </p>
+          </CardContent>
+        </Card>
+      )}
 
       <div className="grid gap-6 lg:grid-cols-3">
         <Card className="border-slate-200 lg:col-span-1">
@@ -165,12 +186,9 @@ export function MatterDetailPage() {
                 </div>
                 <div>
                   <label className="text-xs font-medium text-slate-500">Visa type</label>
-                  <Input
-                    value={visaType}
-                    onChange={(e) => setVisaType(e.target.value)}
-                    placeholder="h1b, h4, asylum..."
-                    className="mt-1"
-                  />
+                  <div className="mt-1">
+                    <VisaTypeSelect value={visaType} onChange={setVisaType} />
+                  </div>
                 </div>
                 <div>
                   <label className="text-xs font-medium text-slate-500">Status</label>
@@ -179,21 +197,12 @@ export function MatterDetailPage() {
                     onChange={(e) => setStatus(e.target.value)}
                     className="mt-1 w-full text-sm border border-slate-200 rounded-lg px-3 py-2 bg-white"
                   >
-                    <option value="active">active</option>
-                    <option value="on_hold">on_hold</option>
-                    <option value="closed">closed</option>
+                    <option value="active">Active</option>
+                    <option value="on_hold">On hold</option>
+                    <option value="closed">Closed</option>
                   </select>
                 </div>
-                <div>
-                  <label className="text-xs font-medium text-slate-500">Case description</label>
-                  <Textarea
-                    value={description}
-                    onChange={(e) => setDescription(e.target.value)}
-                    placeholder="Facts, deadlines, strategy notes for this case..."
-                    className="mt-1 min-h-[140px]"
-                    rows={6}
-                  />
-                </div>
+                <CaseNotesField value={description} onChange={setDescription} rows={6} />
               </>
             ) : (
               <>
@@ -207,12 +216,15 @@ export function MatterDetailPage() {
                   {matter.visa_type && (
                     <Badge variant="secondary">{matter.visa_type.toUpperCase()}</Badge>
                   )}
-                  <Badge variant="outline">{matter.status}</Badge>
+                  <Badge variant="outline" className={matterStatusClass(matter.status)}>
+                    {matterStatusLabel(matter.status)}
+                  </Badge>
                 </div>
                 <div>
-                  <p className="text-xs font-medium text-slate-500">Case description</p>
+                  <p className="text-xs font-medium text-slate-500">Case notes (sent to AI)</p>
                   <p className="text-sm text-slate-700 mt-1 whitespace-pre-wrap">
-                    {matter.description?.trim() || "No description yet — add case notes when you edit this matter."}
+                    {matter.description?.trim() ||
+                      "No notes yet — click Edit to add facts the AI should know about this client."}
                   </p>
                 </div>
                 <p className="text-xs text-slate-400">
@@ -223,48 +235,74 @@ export function MatterDetailPage() {
           </CardContent>
         </Card>
 
-        <Card className="border-slate-200 lg:col-span-2">
-          <CardHeader className="pb-3 flex flex-row items-center justify-between">
-            <CardTitle className="text-base">Research history</CardTitle>
-            <span className="text-xs text-slate-500">
-              {history?.length ?? 0} quer{history?.length === 1 ? "y" : "ies"} tagged to this matter
-            </span>
-          </CardHeader>
-          <CardContent>
-            {historyLoading ? (
-              <div className="flex justify-center py-8">
-                <Loader2 className="w-5 h-5 animate-spin text-brand-600" />
-              </div>
-            ) : history && history.length > 0 ? (
-              <ul className="divide-y divide-slate-100">
-                {history.map((item) => (
-                  <li key={item.id} className="py-3 first:pt-0">
-                    <p className="text-sm font-medium text-slate-900">{item.query}</p>
-                    <p className="text-xs text-slate-500 mt-1 line-clamp-2">{item.answer_preview}</p>
-                    <div className="flex items-center gap-2 mt-2 text-xs text-slate-400">
-                      {item.visa_type && (
-                        <Badge variant="outline" className="text-[10px]">
-                          {item.visa_type.toUpperCase()}
-                        </Badge>
-                      )}
-                      {item.confidence_level && <span>{item.confidence_level} confidence</span>}
-                      <span>{new Date(item.created_at).toLocaleString()}</span>
-                    </div>
-                  </li>
-                ))}
-              </ul>
-            ) : (
-              <div className="text-center py-10">
-                <p className="text-sm text-slate-500 mb-4">
-                  No research tagged to this matter yet.
-                </p>
-                <Button onClick={openChat}>
-                  <MessageSquare className="w-4 h-4 mr-1.5" /> Start research
-                </Button>
-              </div>
-            )}
-          </CardContent>
-        </Card>
+        <div className="lg:col-span-2 space-y-4">
+          <Card className="border-slate-200">
+            <CardHeader className="pb-2">
+              <CardTitle className="text-base">Quick research prompts</CardTitle>
+            </CardHeader>
+            <CardContent className="flex flex-wrap gap-2">
+              {MATTER_QUICK_PROMPTS.map((prompt) => (
+                <button
+                  key={prompt}
+                  type="button"
+                  onClick={() => openChat({ prompt })}
+                  className="text-left text-xs px-3 py-2 rounded-lg border border-slate-200 bg-white hover:bg-brand-50 hover:border-brand-200 text-slate-700 transition-colors"
+                >
+                  {prompt}
+                </button>
+              ))}
+            </CardContent>
+          </Card>
+
+          <Card className="border-slate-200">
+            <CardHeader className="pb-3 flex flex-row items-center justify-between">
+              <CardTitle className="text-base">Research history</CardTitle>
+              <span className="text-xs text-slate-500">
+                {history?.length ?? 0} quer{history?.length === 1 ? "y" : "ies"} tagged to this matter
+              </span>
+            </CardHeader>
+            <CardContent>
+              {historyLoading ? (
+                <div className="flex justify-center py-8">
+                  <Loader2 className="w-5 h-5 animate-spin text-brand-600" />
+                </div>
+              ) : history && history.length > 0 ? (
+                <ul className="divide-y divide-slate-100">
+                  {history.map((item) => (
+                    <li key={item.id}>
+                      <button
+                        type="button"
+                        onClick={() => openChat({ historyId: item.id })}
+                        className="w-full text-left py-3 first:pt-0 hover:bg-slate-50 -mx-2 px-2 rounded-lg transition-colors"
+                      >
+                        <p className="text-sm font-medium text-slate-900">{item.query}</p>
+                        <p className="text-xs text-slate-500 mt-1 line-clamp-2">{item.answer_preview}</p>
+                        <div className="flex items-center gap-2 mt-2 text-xs text-slate-400">
+                          {item.visa_type && (
+                            <Badge variant="outline" className="text-[10px]">
+                              {item.visa_type.toUpperCase()}
+                            </Badge>
+                          )}
+                          {item.confidence_level && <span>{item.confidence_level} confidence</span>}
+                          <span>{new Date(item.created_at).toLocaleString()}</span>
+                        </div>
+                      </button>
+                    </li>
+                  ))}
+                </ul>
+              ) : (
+                <div className="text-center py-10">
+                  <p className="text-sm text-slate-500 mb-4">
+                    No research tagged to this matter yet.
+                  </p>
+                  <Button onClick={() => openChat()}>
+                    <MessageSquare className="w-4 h-4 mr-1.5" /> Start research
+                  </Button>
+                </div>
+              )}
+            </CardContent>
+          </Card>
+        </div>
       </div>
     </div>
   )

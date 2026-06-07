@@ -1,6 +1,8 @@
+from datetime import datetime, timezone
 from fastapi import APIRouter, Depends, HTTPException
 from sqlalchemy.ext.asyncio import AsyncSession
-from sqlalchemy import select
+from sqlalchemy import select, func
+from app.db.models.chat_query_meta import ChatQueryMeta
 from pydantic import BaseModel
 from typing import Optional
 from uuid import UUID
@@ -33,11 +35,15 @@ async def list_matters(
     current_user: User = Depends(get_current_user),
 ):
     result = await db.execute(
-        select(Matter)
+        select(
+            Matter,
+            func.count(ChatQueryMeta.audit_log_id).label("query_count"),
+        )
+        .outerjoin(ChatQueryMeta, ChatQueryMeta.matter_id == Matter.id)
         .where(Matter.user_id == current_user.id)
+        .group_by(Matter.id)
         .order_by(Matter.updated_at.desc().nullslast(), Matter.created_at.desc())
     )
-    matters = result.scalars().all()
     return [
         {
             "id": str(m.id),
@@ -47,8 +53,9 @@ async def list_matters(
             "description": m.description,
             "status": m.status,
             "created_at": str(m.created_at),
+            "query_count": int(query_count or 0),
         }
-        for m in matters
+        for m, query_count in result.all()
     ]
 
 
@@ -110,6 +117,7 @@ async def update_matter(
         raise HTTPException(404, "Matter not found")
     for field, value in body.model_dump(exclude_unset=True).items():
         setattr(matter, field, value)
+    matter.updated_at = datetime.now(timezone.utc)
     await db.commit()
     return {"message": "Updated"}
 

@@ -8,6 +8,7 @@ export interface Matter {
   description: string | null
   status: string
   created_at: string
+  query_count?: number
 }
 
 export const matterService = {
