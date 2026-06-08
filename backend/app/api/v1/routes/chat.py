@@ -30,7 +30,7 @@ from app.scrapers.courtlistener_scraper import CourtListenerScraper
 from app.services.confidence import compute_confidence
 from app.services.answer_quality import assess_and_enhance
 from app.services.form_mapper import get_forms_for_visa
-from app.services.query_cache import get_cached_response, set_cached_response
+from app.services.chat_safety import should_cache_chat_response
 from app.services.session_context import (
     SESSION_HISTORY_TURN_LIMIT,
     SessionHistory,
@@ -181,7 +181,10 @@ async def _load_matter_for_chat(
     )
     matter = result.scalars().first()
     if not matter:
-        return None, None
+        raise HTTPException(
+            status_code=status.HTTP_404_NOT_FOUND,
+            detail="Matter not found",
+        )
 
     lines = [
         f"Title: {matter.title}",
@@ -271,7 +274,9 @@ async def query(
     pii_result = pii_detector.detect_and_redact(body.query)
     clean_query = pii_result.redacted_text
 
-    if not body.stream:
+    if should_cache_chat_response(matter_id=body.matter_id, session_id=body.session_id):
+        from app.services.query_cache import get_cached_response
+
         cached = await get_cached_response(clean_query, query_mode)
         if cached:
             cached["from_cache"] = True
@@ -304,7 +309,10 @@ async def query(
         extra_context=None,
     )
 
-    await set_cached_response(clean_query, result, query_mode)
+    if should_cache_chat_response(matter_id=body.matter_id, session_id=body.session_id):
+        from app.services.query_cache import set_cached_response
+
+        await set_cached_response(clean_query, result, query_mode)
     return QueryResponse(**result)
 
 

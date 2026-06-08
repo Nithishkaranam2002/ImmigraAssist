@@ -10,11 +10,12 @@ def _chapters(volume: int, part: str, count: int) -> list[str]:
     return [f"{base}{i}" for i in range(1, count + 1)]
 
 
-# Volume 2 — Nonimmigrants (H-1B is Part H)
+# Volume 2 — Nonimmigrants (F/M students are Part F, H-1B is Part H)
 VOLUME_2_EXTRA = (
     _chapters(2, "c", 3)
     + _chapters(2, "d", 4)
     + _chapters(2, "e", 3)
+    + _chapters(2, "f", 9)
     + _chapters(2, "g", 4)
     + _chapters(2, "h", 12)   # H-1B / E-3 — critical for cap/lottery/eligibility
     + _chapters(2, "i", 3)

@@ -5,8 +5,7 @@ from typing import Optional
 # (volume, part_letter) -> primary visa_type tag
 VOLUME_PART_VISA: dict[tuple[int, str], str] = {
     (2, "h"): "h1b",       # Specialty Occupation Workers (H-1B, E-3)
-    (2, "f"): "l1",        # Intracompany Transferees (L-1)
-    (2, "g"): "o1",        # Extraordinary ability (O-1)
+    (2, "f"): "f1",        # Students (F, M) - closest supported student tag
     (4, "a"): "asylum",
     (4, "b"): "asylum",
     (4, "c"): "asylum",

@@ -90,6 +90,7 @@ export function ChatPage() {
     loadFromHistory,
   } = useChatStore()
   const { user } = useAuthStore()
+  const matterParam = searchParams.get("matter")
 
   const { data: matters } = useQuery({
     queryKey: ["matters"],
@@ -101,11 +102,8 @@ export function ChatPage() {
   }, [messages, isLoading])
 
   useEffect(() => {
-    const matterFromUrl = searchParams.get("matter")
-    if (matterFromUrl) {
-      setMatterId(matterFromUrl)
-    }
-  }, [searchParams, setMatterId])
+    setMatterId(matterParam)
+  }, [matterParam, setMatterId])
 
   const activeMatter = matters?.find((m) => m.id === matterId)
 
@@ -220,7 +218,7 @@ export function ChatPage() {
     const prompt = state.prompt || undefined
     const historyId = state.historyId || historyFromUrl || undefined
 
-    const signature = `${prompt ?? ""}|${historyId ?? ""}|${searchParams.get("matter") ?? ""}|${qFromUrl ?? ""}`
+    const signature = `${prompt ?? ""}|${historyId ?? ""}|${matterParam ?? ""}|${qFromUrl ?? ""}`
     if (navigationHandledRef.current === signature) return
     navigationHandledRef.current = signature
 
@@ -248,7 +246,7 @@ export function ChatPage() {
         { replace: true, state: null }
       )
     }
-  }, [location.state, location.pathname, searchParams, setSearchParams, navigate])
+  }, [location.state, location.pathname, searchParams, matterParam, setSearchParams, navigate])
 
   const handleFeedback = async (auditLogId: string, isPositive: boolean) => {
     if (feedbackSent.has(auditLogId)) return
@@ -272,6 +270,18 @@ export function ChatPage() {
     clearMessages()
     setHistoryId(undefined)
     setSearchParams({})
+  }
+
+  const handleMatterChange = (nextMatterId: string) => {
+    const value = nextMatterId || null
+    setMatterId(value)
+    const nextParams = new URLSearchParams(searchParams)
+    if (value) {
+      nextParams.set("matter", value)
+    } else {
+      nextParams.delete("matter")
+    }
+    setSearchParams(nextParams, { replace: true })
   }
 
   const lastAssistant = [...messages].reverse().find((m) => m.role === "assistant")
@@ -308,7 +318,7 @@ export function ChatPage() {
               <div className="relative">
                 <select
                   value={matterId || ""}
-                  onChange={(e) => setMatterId(e.target.value || null)}
+                  onChange={(e) => handleMatterChange(e.target.value)}
                   className="text-xs border border-slate-200 rounded-lg px-2 py-1.5 pr-7 bg-white text-slate-700 appearance-none"
                 >
                   <option value="">No matter</option>
