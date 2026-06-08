@@ -55,7 +55,7 @@ function cleanContent(content: string) {
 }
 
 export function ChatPage() {
-  const [searchParams] = useSearchParams()
+  const [searchParams, setSearchParams] = useSearchParams()
   const [input, setInput] = useState(() => searchParams.get("q") ?? "")
   const [docText, setDocText] = useState("")
   const [showDocQA, setShowDocQA] = useState(false)
@@ -236,6 +236,12 @@ export function ChatPage() {
     }
   }
 
+  const handleClear = () => {
+    clearMessages()
+    setHistoryId(undefined)
+    setSearchParams({})
+  }
+
   const lastAssistant = [...messages].reverse().find((m) => m.role === "assistant")
 
   const auditLogIds = messages
@@ -328,7 +334,7 @@ export function ChatPage() {
               </Badge>
             )}
             {messages.length > 0 && (
-              <Button variant="ghost" size="sm" onClick={clearMessages}>
+              <Button variant="ghost" size="sm" onClick={handleClear}>
                 <Trash2 className="w-4 h-4 mr-1" /> Clear
               </Button>
             )}

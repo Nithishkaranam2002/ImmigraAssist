@@ -117,7 +117,7 @@ export const useChatStore = create<ChatStore>((set) => ({
   setCompareMode: (on) => set({ compareMode: on }),
 
   clearMessages: () =>
-    set({ messages: [], sessionId: newSessionId(), isLoading: false }),
+    set({ messages: [], sessionId: newSessionId(), isLoading: false, matterId: null }),
 
   loadFromHistory: (query, data) =>
     set({
