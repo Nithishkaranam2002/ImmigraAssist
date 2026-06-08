@@ -109,7 +109,11 @@ export function LandingPage() {
               </Button>
             </Link>
             <a href="https://github.com/Nithishkaranam2002/ImmigraAssist" target="_blank" rel="noopener noreferrer">
-              <Button size="lg" variant="outline" className="border-white/30 text-white hover:bg-white/10 h-12 px-6">
+              <Button
+                size="lg"
+                variant="outline"
+                className="h-12 px-6 border-white/40 bg-transparent text-white hover:bg-white/15 hover:text-white shadow-none"
+              >
                 View Source <ExternalLink className="w-4 h-4 ml-2" />
               </Button>
             </a>
