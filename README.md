@@ -1,13 +1,12 @@
-# ImmigraAssist 🏛️
+# ImmigraAssist
 
-> AI-powered immigration legal research assistant for law firms — from policies to precedents, instantly.
+> AI-powered immigration legal research for law firms — USCIS policies, BIA precedents, and court cases with cited answers.
 
 [![Live Demo](https://img.shields.io/badge/Live_Demo-157.230.51.229-blue?style=for-the-badge)](http://157.230.51.229)
 [![Python](https://img.shields.io/badge/Python-3.12-blue)](https://python.org)
 [![FastAPI](https://img.shields.io/badge/FastAPI-0.115-green)](https://fastapi.tiangolo.com)
-[![React](https://img.shields.io/badge/React-18-61DAFB)](https://react.dev)
+[![React](https://img.shields.io/badge/React-19-61DAFB)](https://react.dev)
 [![Docker](https://img.shields.io/badge/Docker-Compose-2496ED)](https://docker.com)
-[![RAGAS](https://img.shields.io/badge/RAGAS-0.840-brightgreen)](https://docs.ragas.io)
 [![LangSmith](https://img.shields.io/badge/LangSmith-Traced-orange)](https://smith.langchain.com)
 [![License](https://img.shields.io/badge/License-MIT-yellow)](LICENSE)
 
@@ -20,74 +19,124 @@
 - [Live Demo](#live-demo)
 - [Screenshots](#screenshots)
 - [What is ImmigraAssist?](#what-is-immigraassist)
-- [Evaluation Results](#evaluation-results)
+- [Key Features](#key-features)
 - [Architecture](#architecture)
 - [Knowledge Base](#knowledge-base)
-- [Features](#features)
+- [Evaluation & Metrics](#evaluation--metrics)
 - [Quick Start](#quick-start)
-- [Running RAGAS Evaluation](#running-ragas-evaluation)
 - [API Reference](#api-reference)
 - [User Roles](#user-roles)
 - [Project Structure](#project-structure)
 - [Environment Variables](#environment-variables)
+- [Security & Secrets](#security--secrets)
 - [Development](#development)
 - [Author](#author)
-- [License & Disclaimer](#license)
+- [License & Disclaimer](#license--disclaimer)
 
 ---
 
 ## Live Demo
 
-**URL:** [http://157.230.51.229](http://157.230.51.229)
-
-Login credentials for demo:
-
-| Field | Value |
+| | |
 |---|---|
-| Email | `nithish@immigraassist.com` |
-| Password | `test1234` |
+| **URL** | [http://157.230.51.229](http://157.230.51.229) |
+| **Email** | `nithish@immigraassist.com` |
+| **Password** | `test1234` |
 
-> **Tip:** After login, ask a question like *"What are the requirements for H4 EAD eligibility?"* — answers typically take 15–30 seconds while the system searches policies, cases, and CourtListener.
+> Demo account is **admin** — you can access chat, matters, eval dashboard, policy alerts, audit logs, and team management.
+
+**Try these questions in Chat:**
+
+- *What are the requirements for H4 EAD eligibility?*
+- *Compare H-1B vs O-1 for a software engineer*
+- *Explain AC21 portability for H-1B holders*
+
+Answers typically take **15–30 seconds** while the system retrieves policies, case law, and CourtListener decisions.
 
 ---
 
 ## Screenshots
 
-### Chat — AI legal research with case references
+### Landing page
 
-![ImmigraAssist chat with H4 EAD answer and CourtListener case references](docs/chat-response.png)
-
-### Chat home — suggested immigration law questions
-
-![ImmigraAssist chat home screen](docs/chat-home.png)
+![ImmigraAssist landing page](docs/demo.png)
 
 ### Login
 
-![ImmigraAssist login page](docs/login.png)
+![ImmigraAssist login](docs/login.png)
+
+### Research Chat — home
+
+![Chat home with suggested questions](docs/chat-home.png)
+
+### Research Chat — cited answer
+
+![H4 EAD answer with policy sources and case references](docs/chat-response.png)
+
+> **More screenshots:** Run `node scripts/capture-screenshots.mjs` to regenerate images from the live app (matters, eval dashboard, review queue, policy alerts, visa hubs).
 
 ---
 
 ## What is ImmigraAssist?
 
-ImmigraAssist is a production-grade **RAG (Retrieval-Augmented Generation)** system built for immigration law firms. It reduces legal research time from hours to seconds by combining:
+ImmigraAssist is a **production-grade RAG (Retrieval-Augmented Generation)** platform built for immigration law firms. It turns hours of manual research into seconds by combining live USCIS data, indexed precedents, and GPT-4o with strict citations and attorney guardrails.
 
-- **Real USCIS policy data** — scraped live from the USCIS Policy Manual using Playwright
-- **BIA/AAO case precedents** — 244 Board of Immigration Appeals decisions indexed in Milvus
-- **USCIS news & alerts** — latest policy updates, fee changes, and regulatory announcements
-- **CourtListener live search** — real-time federal court case retrieval
-- **GPT-4o answers** — structured legal research summaries with proper citations
+**Built for real firm workflows:**
+
+| Workflow | How ImmigraAssist helps |
+|----------|-------------------------|
+| Quick research | Ask any visa/policy question in natural language |
+| Client matters | Organize research per client with case notes injected into AI |
+| Document review | Paste petition drafts for attorney-style doc Q&A |
+| Quality control | Low-confidence answers flagged in Review Queue |
+| Compliance | Full audit trail of every query, latency, and feedback |
+| Policy monitoring | USCIS news/alert scraper with admin Policy Alerts feed |
 
 ---
 
-## Evaluation Results
+## Key Features
 
-| Metric | Score | Method |
-|---|---|---|
-| Answer Relevancy | **0.840 / 1.000** | RAGAS + GPT-4o evaluator |
-| Grade | **EXCELLENT** | 20 immigration law test cases |
-| Observability | **LangSmith** | Full LLM pipeline tracing |
+### Research Chat
+- **Streaming answers** with confidence badges (high / medium / low)
+- **10-turn session memory** — follow-ups like *"What forms for that?"* inherit prior topic
+- **Compare mode** — side-by-side visa pathway analysis (H-1B vs O-1, etc.)
+- **Doc Q&A** — paste client document text for review-mode analysis
+- **References panel** — cited USCIS chapters, BIA cases, CourtListener decisions
+- **Export memo** — download research as a text memo
+- **Thumbs up/down feedback** per answer
 
-> Evaluated across 20 immigration law questions covering H1B, H4 EAD, asylum, green card, naturalization, deportation, OPT, TPS, and EB visa categories.
+### Matters (case files)
+- Create matters with **client name, visa type, and case notes**
+- **Research** button opens chat scoped to that matter
+- AI injects **case notes into every prompt** for personalized answers (e.g. Maria Garcia H-4 EAD)
+- **Save to matter** — start in general chat, then attach research to a new or existing matter
+- Matter detail page with **research history** and quick prompts
+
+### Visa Research Hubs
+- Pre-built hubs for H-1B, H-4, asylum, green card, and more
+- Suggested questions per visa type
+- One-click jump to chat with a pre-filled prompt
+
+### Admin & Operations
+- **Evaluation Dashboard** — live metrics (15s refresh): query volume, latency p50/p95, confidence, satisfaction, cache hits, review queue, recent activity
+- **Review Queue** — attorney approval for low-confidence answers
+- **Policy Alerts** — USCIS news/policy changes detected by scrapers
+- **Audit Logs** — full query history with response times and token counts
+- **Documents admin** — ingestion status and corpus management
+- **Team management** — invite links with role assignment
+
+### RAG Pipeline
+- **Hybrid retrieval** — Milvus dense vectors + BM25 keyword search + RRF fusion
+- **CourtListener** live federal court case search
+- **Visa type detection** — auto-tags H-1B, H-4, asylum, etc.
+- **Semantic cache** — Redis-backed response cache for repeated queries
+- **PII guardrails** — GLiNER entity redaction (optional)
+- **LangSmith tracing** — full LLM pipeline observability
+
+### Security & Access
+- **JWT authentication** with role-based access control
+- **Invite-only signup** for firm team members
+- Roles: `junior_associate`, `attorney`, `admin`, `super_admin`
 
 ---
 
@@ -99,87 +148,71 @@ User Query
     ▼
 FastAPI Backend
     │
-    ├── Metadata Filter (visa type detection)
+    ├── Session context (10-turn memory, topic switch detection)
+    ├── Matter context (client case notes injection)
+    ├── Metadata filter (visa type detection)
     │
     ├── Parallel Retrieval
-    │   ├── Milvus Dense Vector Search (laws + cases)
-    │   ├── BM25 Keyword Search
-    │   └── CourtListener Live Search
+    │   ├── Milvus dense vector search (policies + cases)
+    │   ├── BM25 keyword search
+    │   └── CourtListener live search
     │
-    ├── RRF Reranking (Reciprocal Rank Fusion)
-    │
-    ├── Context Builder (formats citations)
-    │
-    ├── GPT-4o (generates answer)
-    │
-    ├── Output Sanitizer (PII redaction, citations)
-    │
-    └── LangSmith (traces every LLM call)
+    ├── RRF reranking + context builder
+    ├── GPT-4o (structured answer + citations)
+    ├── Confidence scoring + quality gaps
+    ├── PII sanitization
+    └── Audit log + optional Review Queue flag
 ```
 
 ### Tech Stack
 
 | Layer | Technology |
-|---|---|
-| Backend | FastAPI, Python 3.12 |
+|-------|------------|
+| Backend | FastAPI, Python 3.12, SQLAlchemy |
 | LLM | OpenAI GPT-4o |
 | Vector DB | Milvus 2.4 |
 | Embeddings | text-embedding-3-small |
 | Relational DB | PostgreSQL 16 |
-| Cache/Queue | Redis 7 + Celery |
+| Cache / Queue | Redis 7 + Celery |
 | Scraping | Playwright (USCIS), httpx (CourtListener) |
-| Retrieval | Hybrid (dense + BM25 + RRF) |
-| Guardrails | GLiNER (PII detection) |
-| Observability | LangSmith (LLM tracing) |
-| Evaluation | RAGAS (answer relevancy 0.840) |
-| Frontend | React 18, TypeScript, Tailwind CSS, Vite |
-| Serving | Nginx (reverse proxy) |
-| Container | Docker Compose (9 services) |
+| Retrieval | Hybrid dense + BM25 + RRF |
+| Guardrails | GLiNER (PII), content moderator |
+| Observability | LangSmith |
+| Frontend | React 19, TypeScript, Tailwind CSS, Vite |
+| State | Zustand + TanStack Query |
+| Serving | Nginx reverse proxy |
+| Deploy | Docker Compose (9 services) |
 
 ---
 
 ## Knowledge Base
 
-| Source | Documents | Vectors |
-|---|---|---|
-| USCIS Policy Manual | 66 | 657 |
-| BIA/AAO Case Decisions | 244 | 5,860 |
-| USCIS News & Alerts | 20 | ~80 |
-| **Total** | **330** | **6,597** |
+| Source | Documents | Vectors (approx.) |
+|--------|-----------|-------------------|
+| USCIS Policy Manual | 66+ chapters | 657+ |
+| BIA / AAO case decisions | 244 | 5,860 |
+| USCIS news & policy alerts | 20+ | ~80 |
+| **Total** | **330+** | **6,500+** |
+
+Scrapers run on a **Celery schedule** (daily news, weekly full scrape) with MD5 change detection — only updated content is re-ingested.
 
 ---
 
-## Features
+## Evaluation & Metrics
 
-### Core RAG Pipeline
-- **Hybrid retrieval** — dense vector search + BM25 keyword search merged with Reciprocal Rank Fusion
-- **Visa type detection** — automatically detects H1B, H4, L1, O1, asylum, green card, F1 queries
-- **Proper citations** — `USCIS Policy Manual — Vol. 10 (Employment Authorization) — Part B — Ch. 2`
-- **BIA case links** — `Matter of Simeio Solutions (BIA) → https://courtlistener.com/opinion/...`
-- **CourtListener integration** — live federal court case search with immigration court filtering
+| Metric | Value | Notes |
+|--------|-------|-------|
+| RAGAS Answer Relevancy | **0.840** | 20 immigration law test cases |
+| Avg response time | **~11s** | Production (varies by query) |
+| Confidence scoring | High / Medium / Low | Based on sources + answer completeness |
+| Live dashboard | 15s polling | Real DB metrics at `/eval` |
 
-### Observability & Evaluation
-- **LangSmith tracing** — every LLM call traced with inputs, outputs, token counts, and latency
-- **RAGAS evaluation** — answer relevancy score of 0.840 across 20 immigration law test cases
-- **Audit logging** — every query logged with user, response time, and token count
+Run RAGAS locally:
 
-### UI
-- **Split panel layout** — chat on left, references panel on right
-- **Legal Clauses section** — exact USCIS policy chapter citations
-- **Related Cases section** — clickable BIA/AAO and federal court decisions
-- **Response time display** — ms timing for each query
-- **Helpful/unhelpful feedback** — thumbs up/down per response
-
-### Security & Access
-- **Role-based access control** — `super_admin`, `admin`, `attorney`, `junior_associate`
-- **JWT authentication** — secure token-based auth
-- **Invite system** — admins generate invite links with specific roles
-- **PII detection** — GLiNER model redacts names, SSNs, addresses from outputs
-
-### Operations
-- **Auto-scraping** — Celery scheduled tasks run daily/weekly
-- **Change detection** — MD5 hash comparison, only re-ingests updated content
-- **Admin dashboard** — trigger scrapes, view system stats
+```bash
+cd backend
+python tests/test_ragas.py
+```
 
 ---
 
@@ -187,123 +220,98 @@ FastAPI Backend
 
 ### Prerequisites
 
-- Docker Desktop
+- Docker Desktop (or Docker + Docker Compose)
 - OpenAI API key
 
-### 1. Clone the repo
+### 1. Clone
 
 ```bash
 git clone https://github.com/Nithishkaranam2002/ImmigraAssist.git
 cd ImmigraAssist
 ```
 
-### 2. Configure environment
+### 2. Configure secrets (never commit `.env`)
 
 ```bash
 cp backend/.env.example backend/.env
 ```
 
-Edit `backend/.env` and add your keys:
+Edit `backend/.env`:
 
 ```env
 OPENAI_API_KEY=sk-your-key-here
-LANGSMITH_API_KEY=your-langsmith-key-here
-LANGCHAIN_TRACING_V2=true
-LANGCHAIN_PROJECT=immigraassist
+SECRET_KEY=generate-a-long-random-string
 ADMIN_EMAIL=admin@yourfirm.com
-ADMIN_PASSWORD=yourpassword
+ADMIN_PASSWORD=your-strong-password
+LANGCHAIN_API_KEY=your-langsmith-key-optional
 ```
 
-### 3. Start with Docker
+### 3. Start
 
 ```bash
 docker compose up -d
 ```
 
-Wait ~60 seconds for all services to initialize.
+Wait ~60–90 seconds for Postgres, Milvus, Redis, and backend to become healthy.
 
-### 4. Open the app
+### 4. Open
 
 ```
 http://localhost
 ```
 
-Login with your admin credentials from `.env`.
+Login with your `ADMIN_EMAIL` / `ADMIN_PASSWORD` from `.env`.
 
-### 5. Ingest data
+### 5. Ingest corpus (first run)
 
 ```bash
-# Get auth token
+# Login and get token
 curl -X POST http://localhost/api/v1/auth/login \
   -H "Content-Type: application/json" \
   -d '{"email": "admin@yourfirm.com", "password": "yourpassword"}'
 
-# Trigger full scrape (replace TOKEN)
+# Trigger scrape (replace TOKEN)
 curl -X POST "http://localhost/api/v1/admin/scrape/trigger?scrape_policy=true&scrape_news=true&scrape_bia=true" \
   -H "Authorization: Bearer TOKEN"
 ```
 
-Takes 15–20 minutes on first run to ingest ~330 documents and 6,500+ vectors.
-
----
-
-## Running RAGAS Evaluation
-
-```bash
-cd backend
-python tests/test_ragas.py
-```
-
-Output:
-
-```
-IMMIGRAASSIST RAGAS EVALUATION RESULTS
-========================================
-Questions evaluated: 20
-SCORES:
-  Answer Relevancy:  0.840 / 1.000
-  Overall Average:   0.840 / 1.000
-  Grade: EXCELLENT
-```
+First ingestion takes **15–20 minutes**.
 
 ---
 
 ## API Reference
 
-```
-POST /api/v1/auth/login           # Login
-POST /api/v1/auth/register        # Register
-POST /api/v1/chat/query           # Ask a question
-GET  /api/v1/cases/search         # Search CourtListener cases
-POST /api/v1/admin/scrape/trigger # Trigger data scrape
-GET  /api/v1/users/               # List all users
-POST /api/v1/invites/             # Create invite link
-GET  /health                      # Health check
-```
+| Method | Endpoint | Description |
+|--------|----------|-------------|
+| `POST` | `/api/v1/auth/login` | Login |
+| `POST` | `/api/v1/auth/register` | Register (with invite token) |
+| `POST` | `/api/v1/chat/query` | Ask a question |
+| `POST` | `/api/v1/chat/query/stream` | Streaming chat |
+| `POST` | `/api/v1/chat/doc-query` | Document Q&A |
+| `GET` | `/api/v1/platform/history` | Query history |
+| `GET` | `/api/v1/platform/eval-metrics` | Eval dashboard data |
+| `GET` | `/api/v1/platform/reviews` | Review queue |
+| `GET` | `/api/v1/platform/alerts` | Policy alerts |
+| `GET` | `/api/v1/matters/` | List matters |
+| `POST` | `/api/v1/matters/attach-research` | Save chat to matter |
+| `POST` | `/api/v1/admin/scrape/trigger` | Trigger scrapers |
+| `GET` | `/health` | Health check |
+
+Interactive docs: `http://localhost/api/v1/docs` (when `DEBUG=True`).
 
 ---
 
 ## User Roles
 
-| Role | Chat | Documents | Users | Dashboard | Audit Logs |
-|---|---|---|---|---|---|
-| `junior_associate` | ✅ | ❌ | ❌ | ❌ | ❌ |
-| `attorney` | ✅ | ✅ | ❌ | ❌ | ❌ |
-| `admin` | ✅ | ✅ | ✅ | ✅ | ✅ |
-| `super_admin` | ✅ | ✅ | ✅ | ✅ | ✅ |
-
----
-
-## Sample Questions
-
-```
-What are the requirements for H4 EAD eligibility?
-Explain AC21 portability for H1B holders
-What documents are needed for asylum application?
-What happens if an H1B petition is denied?
-What defenses are available against deportation for long-term residents?
-What is the latest update on H1B registration for FY 2027?
-```
+| Feature | Junior | Attorney | Admin |
+|---------|:------:|:--------:|:-----:|
+| Research Chat | ✅ | ✅ | ✅ |
+| Matters | ✅ | ✅ | ✅ |
+| Visa Hubs | ✅ | ✅ | ✅ |
+| Doc Q&A / Compare / Export | ✅ | ✅ | ✅ |
+| Review Queue (approve/reject) | ❌ | ✅ | ✅ |
+| Documents / Team / Audit | ❌ | ❌ | ✅ |
+| Eval Dashboard / Policy Alerts | ❌ | ❌ | ✅ |
 
 ---
 
@@ -313,29 +321,23 @@ What is the latest update on H1B registration for FY 2027?
 ImmigraAssist/
 ├── backend/
 │   ├── app/
-│   │   ├── api/v1/routes/      # FastAPI route handlers
-│   │   ├── db/                 # PostgreSQL + Milvus + Redis clients
-│   │   ├── guardrails/         # PII detection, content moderation
-│   │   ├── ingestion/          # Document chunking, embedding pipeline
-│   │   ├── llm/                # GPT-4o client, prompt builder
-│   │   ├── retrieval/          # Hybrid retriever, reranker, context builder
-│   │   ├── scrapers/           # USCIS, BIA/AAO, CourtListener scrapers
-│   │   └── tasks/              # Celery background tasks
-│   ├── tests/
-│   │   ├── test_ragas.py       # RAGAS evaluation script
-│   │   ├── eval_dataset.json   # 20 immigration law test cases
-│   │   └── ragas_results.json  # Latest evaluation results
-│   ├── Dockerfile
-│   └── requirements.txt
+│   │   ├── api/v1/routes/     # chat, matters, platform, admin, auth
+│   │   ├── db/models/         # User, Matter, AuditLog, PolicyAlert, etc.
+│   │   ├── guardrails/        # PII, content moderation
+│   │   ├── ingestion/         # Chunking, embedding pipeline
+│   │   ├── llm/               # GPT client, prompts, response parser
+│   │   ├── retrieval/         # Hybrid retriever, reranker, context builder
+│   │   ├── scrapers/          # USCIS policy, news, BIA, CourtListener
+│   │   ├── services/          # Session context, confidence, answer quality
+│   │   └── tasks/             # Celery scrape + ingest tasks
+│   ├── tests/                 # RAGAS evaluation
+│   └── .env.example           # Template only — copy to .env
 ├── frontend/
-│   ├── src/
-│   │   ├── pages/              # ChatPage, AdminPage, UsersPage, etc.
-│   │   ├── services/           # API clients
-│   │   └── store/              # Zustand state management
-│   ├── Dockerfile
-│   └── nginx.conf
-├── docs/                       # Screenshots for README
-├── scripts/                    # Utility scripts
+│   ├── src/pages/             # Chat, Matters, Eval, Alerts, etc.
+│   ├── src/components/        # UI, chat, matters, eval charts
+│   └── src/services/          # API clients
+├── docs/                      # README screenshots
+├── scripts/                   # capture-screenshots.mjs
 └── docker-compose.yml
 ```
 
@@ -343,52 +345,90 @@ ImmigraAssist/
 
 ## Environment Variables
 
-| Variable | Description |
-|---|---|
-| `OPENAI_API_KEY` | OpenAI API key (required) |
-| `OPENAI_MODEL` | GPT model — default `gpt-4o` |
-| `LANGSMITH_API_KEY` | LangSmith API key for tracing |
-| `LANGCHAIN_TRACING_V2` | Enable LangSmith tracing |
-| `POSTGRES_HOST` | PostgreSQL host |
-| `MILVUS_HOST` | Milvus vector DB host |
-| `REDIS_HOST` | Redis host |
-| `ADMIN_EMAIL` | Super admin email (required) |
-| `ADMIN_PASSWORD` | Super admin password (required) |
-| `SECRET_KEY` | JWT secret key (required) |
+| Variable | Required | Description |
+|----------|----------|-------------|
+| `OPENAI_API_KEY` | ✅ | OpenAI API key |
+| `SECRET_KEY` | ✅ | JWT signing secret (use a long random string) |
+| `ADMIN_EMAIL` | ✅ | Bootstrap super-admin email |
+| `ADMIN_PASSWORD` | ✅ | Bootstrap super-admin password |
+| `POSTGRES_*` | ✅ | PostgreSQL connection |
+| `MILVUS_HOST` | ✅ | Milvus vector DB host |
+| `REDIS_HOST` | ✅ | Redis host |
+| `LANGCHAIN_API_KEY` | Optional | LangSmith tracing |
+| `COURTLISTENER_API_TOKEN` | Optional | Higher CourtListener rate limits |
+| `COHERE_API_KEY` | Optional | Cohere reranker |
+| `INTEGRATION_API_KEY` | Optional | External integration auth |
 
-See `backend/.env.example` for the full list.
+Full list: [`backend/.env.example`](backend/.env.example)
+
+---
+
+## Security & Secrets
+
+### Are your API keys safe?
+
+**Yes — if you follow these rules (which this repo is set up for):**
+
+| Check | Status |
+|-------|--------|
+| `backend/.env` in `.gitignore` | ✅ Not committed to GitHub |
+| Only `.env.example` with placeholders in repo | ✅ Safe |
+| Real API keys in source code | ✅ None found |
+| OpenAI / LangSmith keys in git history | ✅ None committed |
+| Secrets loaded via environment variables | ✅ `app/config.py` |
+| Production `.env` on server only | ✅ Mounted via Docker, not in image |
+
+### What IS in the public repo (intentional)
+
+| Item | Risk | Notes |
+|------|------|-------|
+| Demo login `test1234` | Low | Public demo account only — change for real deployments |
+| `docker-compose.yml` default `postgres123` | Medium | Change `POSTGRES_PASSWORD` in production `.env` |
+| `backend/.env.example` placeholders | None | Templates only |
+
+### Best practices for production
+
+1. **Never commit** `backend/.env` — it is gitignored
+2. Use a **strong `SECRET_KEY`** (32+ random characters)
+3. **Rotate** OpenAI and LangSmith keys if ever exposed
+4. Change **demo admin password** on public droplets
+5. Restrict **CORS_ORIGINS** to your domain
+6. Set `DEBUG=False` in production
+7. Use **HTTPS** (TLS certificate on Nginx)
+
+### If a key was ever leaked
+
+1. Revoke the key in OpenAI / LangSmith / CourtListener dashboards
+2. Generate a new key
+3. Update `backend/.env` on the server only
+4. Restart: `docker compose up -d --build backend`
 
 ---
 
 ## Development
 
-### Run locally (without Docker)
+### Local (without Docker)
 
 ```bash
 # Backend
-cd backend
-python -m venv .venv
-source .venv/bin/activate
+cd backend && python -m venv .venv && source .venv/bin/activate
 pip install -r requirements.txt
 uvicorn app.main:app --reload --port 8000
 
 # Frontend
-cd frontend
-npm install
-npm run dev
+cd frontend && npm install && npm run dev
 
-# Celery worker
-cd backend
-celery -A celery_worker worker --loglevel=info
+# Celery
+cd backend && celery -A celery_worker worker --loglevel=info
 ```
 
-### Run with Docker
+### Docker
 
 ```bash
-docker compose up -d           # Start all services
-docker compose logs -f backend # View backend logs
-docker compose ps              # Check service health
-docker compose down            # Stop all services
+docker compose up -d
+docker compose logs -f backend
+docker compose ps
+docker compose down
 ```
 
 ### Regenerate README screenshots
@@ -397,19 +437,23 @@ docker compose down            # Stop all services
 node scripts/capture-screenshots.mjs
 ```
 
+Optional env overrides:
+
+```bash
+SCREENSHOT_BASE_URL=http://157.230.51.229 \
+SCREENSHOT_EMAIL=your@email.com \
+SCREENSHOT_PASSWORD=yourpass \
+node scripts/capture-screenshots.mjs
+```
+
 ---
 
 ## Built With
 
-- [FastAPI](https://fastapi.tiangolo.com) — modern Python web framework
-- [Milvus](https://milvus.io) — open-source vector database
-- [LangChain](https://langchain.com) — LLM application framework
-- [LangSmith](https://smith.langchain.com) — LLM observability and tracing
-- [RAGAS](https://docs.ragas.io) — RAG evaluation framework
-- [GLiNER](https://github.com/urchade/GLiNER) — generalist NER model for PII detection
-- [CourtListener](https://courtlistener.com) — free law API with 4M+ opinions
-- [Playwright](https://playwright.dev) — browser automation for JS-rendered scraping
-- [Celery](https://docs.celeryq.dev) — distributed task queue
+- [FastAPI](https://fastapi.tiangolo.com) · [Milvus](https://milvus.io) · [OpenAI GPT-4o](https://openai.com)
+- [LangSmith](https://smith.langchain.com) · [RAGAS](https://docs.ragas.io) · [CourtListener](https://courtlistener.com)
+- [Playwright](https://playwright.dev) · [Celery](https://docs.celeryq.dev) · [GLiNER](https://github.com/urchade/GLiNER)
+- [React](https://react.dev) · [Tailwind CSS](https://tailwindcss.com) · [TanStack Query](https://tanstack.com/query)
 
 ---
 
@@ -417,21 +461,14 @@ node scripts/capture-screenshots.mjs
 
 **Nithish Karanam**
 
-- MS Artificial Intelligence, University of North Texas (GPA: 3.5)
-- NVIDIA Certified — NCP-AAI and Generative AI LLMs Associate
-- [GitHub](https://github.com/Nithishkaranam2002)
-- [LinkedIn](https://linkedin.com/in/nithishkaranam)
-- [Portfolio](https://nithishkaranam.lovable.app)
-- [ImmigraAssist Repo](https://github.com/Nithishkaranam2002/ImmigraAssist)
+- MS Artificial Intelligence, University of North Texas
+- NVIDIA Certified — NCP-AAI & Generative AI LLMs Associate
+- [GitHub](https://github.com/Nithishkaranam2002) · [LinkedIn](https://linkedin.com/in/nithishkaranam) · [Portfolio](https://nithishkaranam.lovable.app)
 
 ---
 
-## License
+## License & Disclaimer
 
-MIT License — see [LICENSE](LICENSE) for details.
+**MIT License** — see [LICENSE](LICENSE).
 
----
-
-## Disclaimer
-
-ImmigraAssist is an AI research tool intended to assist legal professionals with research. It does not constitute legal advice. Always consult a qualified immigration attorney before making legal decisions.
+ImmigraAssist is an AI **research assistant**, not a lawyer. All outputs require **attorney review** before client use. Not legal advice.
