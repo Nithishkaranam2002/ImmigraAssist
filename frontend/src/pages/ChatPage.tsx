@@ -1,5 +1,5 @@
 import { useState, useRef, useEffect } from "react"
-import { Link, useSearchParams } from "react-router-dom"
+import { Link, useLocation, useNavigate, useSearchParams } from "react-router-dom"
 import { useQuery, useQueryClient } from "@tanstack/react-query"
 import {
   Send,
@@ -54,9 +54,16 @@ function cleanContent(content: string) {
     .replace(/\[Protected\]/g, "the applicant")
 }
 
+type ChatLocationState = {
+  prompt?: string
+  historyId?: string
+}
+
 export function ChatPage() {
+  const location = useLocation()
+  const navigate = useNavigate()
   const [searchParams, setSearchParams] = useSearchParams()
-  const [input, setInput] = useState(() => searchParams.get("q") ?? "")
+  const [input, setInput] = useState("")
   const [docText, setDocText] = useState("")
   const [showDocQA, setShowDocQA] = useState(false)
   const [feedbackSent, setFeedbackSent] = useState<Set<string>>(new Set())
@@ -97,10 +104,6 @@ export function ChatPage() {
     const matterFromUrl = searchParams.get("matter")
     if (matterFromUrl) {
       setMatterId(matterFromUrl)
-    }
-    const qFromUrl = searchParams.get("q")
-    if (qFromUrl) {
-      setInput(qFromUrl)
     }
   }, [searchParams, setMatterId])
 
@@ -209,14 +212,43 @@ export function ChatPage() {
     }
   }
 
-  const historyFromUrlRef = useRef<string | null>(null)
+  const navigationHandledRef = useRef<string | null>(null)
   useEffect(() => {
+    const state = (location.state || {}) as ChatLocationState
+    const qFromUrl = searchParams.get("q")
     const historyFromUrl = searchParams.get("history")
-    if (historyFromUrl && historyFromUrl !== historyFromUrlRef.current) {
-      historyFromUrlRef.current = historyFromUrl
-      handleHistorySelect(historyFromUrl)
+    const prompt = state.prompt || undefined
+    const historyId = state.historyId || historyFromUrl || undefined
+
+    const signature = `${prompt ?? ""}|${historyId ?? ""}|${searchParams.get("matter") ?? ""}|${qFromUrl ?? ""}`
+    if (navigationHandledRef.current === signature) return
+    navigationHandledRef.current = signature
+
+    if (prompt) setInput(prompt)
+    if (historyId) handleHistorySelect(historyId)
+
+    const nextParams = new URLSearchParams(searchParams)
+    let urlChanged = false
+    if (nextParams.has("q")) {
+      nextParams.delete("q")
+      urlChanged = true
     }
-  }, [searchParams])
+    if (nextParams.has("history")) {
+      nextParams.delete("history")
+      urlChanged = true
+    }
+    if (qFromUrl) urlChanged = true
+    if (urlChanged) {
+      setSearchParams(nextParams, { replace: true })
+    }
+
+    if (state.prompt || state.historyId) {
+      navigate(
+        { pathname: location.pathname, search: nextParams.toString() ? `?${nextParams}` : "" },
+        { replace: true, state: null }
+      )
+    }
+  }, [location.state, location.pathname, searchParams, setSearchParams, navigate])
 
   const handleFeedback = async (auditLogId: string, isPositive: boolean) => {
     if (feedbackSent.has(auditLogId)) return

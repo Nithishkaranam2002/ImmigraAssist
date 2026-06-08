@@ -70,9 +70,12 @@ export function MatterDetailPage() {
 
   const openChat = (opts?: { prompt?: string; historyId?: string }) => {
     const params = new URLSearchParams({ matter: matterId! })
-    if (opts?.prompt) params.set("q", opts.prompt)
-    if (opts?.historyId) params.set("history", opts.historyId)
-    navigate(`/chat?${params}`)
+    navigate(`/chat?${params}`, {
+      state: {
+        prompt: opts?.prompt,
+        historyId: opts?.historyId,
+      },
+    })
   }
 
   if (isLoading) {
