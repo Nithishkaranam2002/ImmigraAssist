@@ -1,0 +1,11 @@
+{
+  "name": "immigraassist",
+  "private": true,
+  "description": "Root scripts for ImmigraAssist (screenshot capture)",
+  "scripts": {
+    "screenshots": "node scripts/capture-screenshots.mjs"
+  },
+  "devDependencies": {
+    "playwright": "^1.52.0"
+  }
+}
