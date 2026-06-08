@@ -1,3 +1,4 @@
+import { lazy, Suspense } from "react"
 import { BrowserRouter, Routes, Route, Navigate } from "react-router-dom"
 import { QueryClient, QueryClientProvider } from "@tanstack/react-query"
 import { ErrorBoundary } from "@/components/ErrorBoundary"
@@ -17,7 +18,11 @@ import { MatterDetailPage } from "@/pages/MatterDetailPage"
 import { ResearchHubPage } from "@/pages/ResearchHubPage"
 import { ResearchVisaPage } from "@/pages/ResearchVisaPage"
 import { ReviewQueuePage } from "@/pages/ReviewQueuePage"
-import { EvalDashboardPage } from "@/pages/EvalDashboardPage"
+import { Loader2 } from "lucide-react"
+
+const EvalDashboardPage = lazy(() =>
+  import("@/pages/EvalDashboardPage").then((m) => ({ default: m.EvalDashboardPage }))
+)
 import { AlertsPage } from "@/pages/AlertsPage"
 
 const queryClient = new QueryClient({
@@ -52,7 +57,20 @@ export default function App() {
                 <Route path="/admin" element={<AdminPage />} />
                 <Route path="/users" element={<UsersPage />} />
                 <Route path="/audit" element={<AuditPage />} />
-                <Route path="/eval" element={<EvalDashboardPage />} />
+                <Route
+                  path="/eval"
+                  element={
+                    <Suspense
+                      fallback={
+                        <div className="h-full flex items-center justify-center">
+                          <Loader2 className="w-6 h-6 animate-spin text-brand-600" />
+                        </div>
+                      }
+                    >
+                      <EvalDashboardPage />
+                    </Suspense>
+                  }
+                />
                 <Route path="/alerts" element={<AlertsPage />} />
               </Route>
             </Route>
