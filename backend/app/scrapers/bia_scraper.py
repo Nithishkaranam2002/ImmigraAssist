@@ -10,6 +10,8 @@ from app.utils.logger import logger
 COURTLISTENER_BASE = "https://www.courtlistener.com/api/rest/v4"
 
 BIA_SEARCH_QUERIES = [
+    "F-1 OPT optional practical training STEM extension",
+    "STEM OPT 24 month extension student",
     "H-1B specialty occupation denial appeal",
     "H-4 dependent spouse employment authorization",
     "asylum persecution withholding removal",
@@ -33,6 +35,8 @@ BIA_SEARCH_QUERIES = [
 ]
 
 AAO_SEARCH_QUERIES = [
+    "F-1 OPT STEM practical training denial",
+    "optional practical training employment authorization",
     "extraordinary ability O-1 visa denial",
     "national interest waiver EB-2 denial",
     "outstanding researcher professor EB-1",

@@ -46,7 +46,8 @@ Write a thorough research memo. Use markdown subheadings (###) for:
 - [Law/policy reference with section/clause from context]
 
 **CITED CASES:**
-- [Case reference and why it matters]
+- [Case reference and why it matters — ONLY cases present as [CASE N] or [COURT N] in context]
+- If no case blocks were provided in context, write exactly: None — no directly relevant case precedents were retrieved; rely on policy sources above.
 
 **IMPORTANT NOTES:**
 - [Date-sensitive caveats, policy changes, verification items]

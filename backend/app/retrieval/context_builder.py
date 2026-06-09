@@ -3,6 +3,7 @@ from dataclasses import dataclass
 from sqlalchemy.ext.asyncio import AsyncSession
 from sqlalchemy import select
 from app.retrieval.hybrid_retriever import RetrievedChunk
+from app.retrieval.case_relevance import filter_case_chunks, filter_court_cases
 from app.retrieval.section_resolver import SectionResolver
 from app.db.models.document import Document
 from app.utils.logger import logger
@@ -131,6 +132,8 @@ class ContextBuilder:
         law_chunks: list[RetrievedChunk],
         case_chunks: list[RetrievedChunk],
         court_cases: list = [],
+        query: str = "",
+        visa_type: str | None = None,
     ) -> BuiltContext:
 
         logger.info(
@@ -143,6 +146,19 @@ class ContextBuilder:
         case_chunks = await self.resolver.resolve(db, case_chunks)
         doc_filenames = await self._fetch_doc_filenames_by_doc_id(db, law_chunks)
         case_filenames = await self._fetch_doc_filenames_by_doc_id(db, case_chunks)
+
+        if query:
+            case_chunks = filter_case_chunks(
+                case_chunks,
+                query=query,
+                visa_type=visa_type,
+                filename_by_doc_id=case_filenames,
+            )
+            court_cases = filter_court_cases(
+                court_cases,
+                query=query,
+                visa_type=visa_type,
+            )
 
         law_section = self._format_law_chunks(law_chunks, doc_filenames)
         case_section = self._format_case_chunks(case_chunks, case_filenames)

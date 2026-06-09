@@ -3,6 +3,7 @@ import re
 from dataclasses import dataclass
 from typing import Optional
 from app.config import settings
+from app.retrieval.case_relevance import score_case_text
 from app.utils.logger import logger
 
 
@@ -40,7 +41,7 @@ VISA_ANCHORS = {
     "eb2": ["EB-2", "advanced degree", "PERM"],
     "asylum": ["asylum", "withholding of removal", "persecution"],
     "green_card": ["adjustment of status", "I-485", "lawful permanent resident"],
-    "f1": ["F-1", "student", "OPT"],
+    "f1": ["F-1", "student", "OPT", "STEM OPT", "practical training"],
 }
 
 TOPIC_PHRASES: list[tuple[re.Pattern, list[str]]] = [
@@ -55,6 +56,14 @@ TOPIC_PHRASES: list[tuple[re.Pattern, list[str]]] = [
     (re.compile(r"\bcompare|versus|vs\.?\b", re.I), ["comparison", "visa category"]),
     (re.compile(r"\b180[- ]day|extension", re.I), ["180-day extension", "status extension"]),
     (re.compile(r"\bconsular|visa\s+stamp|abroad", re.I), ["consular processing", "visa stamp"]),
+    (
+        re.compile(r"\b(opt\b|stem\s+opt|cpt\b|practical\s+training|sevis|i-983)", re.I),
+        ["STEM OPT", "OPT extension", "F-1 student", "Form I-983"],
+    ),
+    (
+        re.compile(r"\bhow\s+long|duration|months?\b", re.I),
+        ["24 month", "STEM OPT duration", "OPT period"],
+    ),
 ]
 
 STOP_WORDS = frozenset({
@@ -77,7 +86,11 @@ TOPIC_MISMATCH = {
     "o1": [r"\basylum\b", r"\bnaturalization\b"],
     "eb1": [r"\basylum\b", r"\bf-1\b.*\bstudent\b"],
     "eb2": [r"\basylum\b", r"\bf-1\b.*\bstudent\b"],
-    "f1": [r"\basylum\b", r"\bh-1b\s+cap\b", r"\bnaturalization\b"],
+    "f1": [
+        r"\basylum\b", r"\bh-1b\s+cap\b", r"\bnaturalization\b",
+        r"\bfair\s+admissions\b", r"\bstudents?\s+for\s+fair\b",
+        r"\bh-1b\b(?!.*\b(cap[- ]?gap|student)\b)",
+    ],
     "asylum": [r"\bh-1b\s+cap\b", r"\bpremium\s+processing\b", r"\bl-1\b"],
     "green_card": [r"\bf-1\b.*\bstudent\b", r"\bh-1b\s+cap\b"],
 }
@@ -173,6 +186,21 @@ class CourtListenerScraper:
             )
 
         ranked = self._rank_and_filter(raw_cases, query, visa_type, max_results)
+
+        # Targeted second pass for F-1/OPT when initial results are weak or empty
+        if visa_type == "f1" and re.search(
+            r"\b(opt|stem\s+opt|cpt|practical\s+training)\b", query, re.I
+        ):
+            if len(ranked) < max_results:
+                opt_query = '"STEM OPT" "optional practical training" F-1'
+                extra = await self._fetch(opt_query, fetch_n, court="ca9 ca2 ca4 cadc bia")
+                seen = {c.case_id for c in ranked}
+                for c in extra:
+                    if c.case_id not in seen:
+                        raw_cases.append(c)
+                        seen.add(c.case_id)
+                ranked = self._rank_and_filter(raw_cases, query, visa_type, max_results)
+
         logger.info(
             f"CourtListener kept {len(ranked)}/{len(raw_cases)} cases after relevance filter"
         )
@@ -228,6 +256,11 @@ class CourtListenerScraper:
 
     def _build_search_query(self, query: str, visa_type: Optional[str]) -> str:
         """Combine visa anchors with topic terms extracted from the user's question."""
+        if visa_type == "f1" and re.search(
+            r"\b(opt|stem\s+opt|cpt|practical\s+training)\b", query, re.I
+        ):
+            return '"STEM OPT" "optional practical training" F-1 student I-983'
+
         terms: list[str] = []
 
         if visa_type and visa_type in VISA_ANCHORS:
@@ -275,10 +308,18 @@ class CourtListenerScraper:
             for anchor in VISA_ANCHORS[visa_type]:
                 query_tokens.update(self._tokenize(anchor))
 
+        min_score = MIN_RELEVANCE_SCORE
+        if visa_type == "f1" and re.search(
+            r"\b(opt|stem\s+opt|cpt|practical\s+training)\b", query, re.I
+        ):
+            min_score = 0.30
+
         scored: list[tuple[float, CourtCase]] = []
         for case in cases:
-            score = self._relevance_score(case, query_tokens, visa_type)
-            if score >= MIN_RELEVANCE_SCORE:
+            case_text = f"{case.case_name} {case.summary or ''}"
+            score = score_case_text(case_text, query, visa_type)
+            score = max(score, self._relevance_score(case, query_tokens, visa_type) * 0.85)
+            if score >= min_score:
                 case.relevance_score = round(score, 3)
                 scored.append((score, case))
 

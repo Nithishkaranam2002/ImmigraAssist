@@ -26,6 +26,7 @@ from app.retrieval.context_builder import ContextBuilder
 from app.llm.prompt_builder import PromptBuilder
 from app.llm.gpt_client import GPTClient, GPTResponse
 from app.llm.response_parser import ResponseParser
+from app.retrieval.case_relevance import filter_case_chunks, filter_court_cases
 from app.scrapers.courtlistener_scraper import CourtListenerScraper
 from app.services.confidence import compute_confidence
 from app.services.answer_quality import assess_and_enhance
@@ -382,6 +383,9 @@ async def _run_pipeline(
     law_chunks = await reranker.rerank(query=retrieval_query, chunks=law_chunks)
     case_chunks = await reranker.rerank(query=retrieval_query, chunks=case_chunks)
     case_chunks = await clustering.cluster_and_select(chunks=case_chunks)
+    case_chunks = filter_case_chunks(
+        case_chunks, query=clean_query, visa_type=filter_context.visa_type
+    )
 
     async with session_scope() as db:
         context = await context_builder.build(
@@ -389,6 +393,8 @@ async def _run_pipeline(
             law_chunks=law_chunks,
             case_chunks=case_chunks,
             court_cases=court_cases,
+            query=clean_query,
+            visa_type=filter_context.visa_type,
         )
 
     if extra_context:
@@ -568,6 +574,9 @@ async def _stream_pipeline(
         law_chunks = await reranker.rerank(query=retrieval_query, chunks=law_chunks)
         case_chunks = await reranker.rerank(query=retrieval_query, chunks=case_chunks)
         case_chunks = await clustering.cluster_and_select(chunks=case_chunks)
+        case_chunks = filter_case_chunks(
+            case_chunks, query=clean_query, visa_type=filter_context.visa_type
+        )
 
         async with session_scope() as db:
             context = await context_builder.build(
@@ -575,6 +584,8 @@ async def _stream_pipeline(
                 law_chunks=law_chunks,
                 case_chunks=case_chunks,
                 court_cases=court_cases,
+                query=clean_query,
+                visa_type=filter_context.visa_type,
             )
 
         if matter_context:
@@ -659,6 +670,11 @@ async def _retrieve_all(
                 query=user_query or query,
                 visa_type=visa_type,
                 max_results=settings.COURTLISTENER_MAX_RESULTS,
+            )
+            court_cases = filter_court_cases(
+                court_cases,
+                query=user_query or query,
+                visa_type=visa_type,
             )
         except Exception as e:
             logger.error(f"CourtListener search failed: {e}")

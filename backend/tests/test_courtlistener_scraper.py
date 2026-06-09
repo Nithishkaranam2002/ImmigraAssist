@@ -67,6 +67,30 @@ def test_relevance_boosts_matching_h4_ead_case(scraper):
     assert score >= 0.22
 
 
+def test_stem_opt_query_drops_unrelated_cases(scraper):
+    unrelated = CourtCase(
+        case_name="Students For Fair Admissions Inc v. President",
+        case_id="x",
+        court="bia",
+        court_name="AAO",
+        date_decided=None,
+        citation=None,
+        summary="Affirmative action challenge unrelated to student visas.",
+        full_text_url="https://example.com",
+        courtlistener_url="https://example.com",
+        relevance_score=0.95,
+        visa_types=[],
+        outcome=None,
+    )
+    result = scraper._rank_and_filter(
+        [unrelated],
+        "How long is the STEM OPT extension?",
+        "f1",
+        3,
+    )
+    assert result == []
+
+
 def test_rank_and_filter_drops_irrelevant(scraper):
     good = CourtCase(
         case_name="H-4 EAD employment authorization",

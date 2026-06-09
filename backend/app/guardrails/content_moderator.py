@@ -22,8 +22,8 @@ class ModerationResult:
 # immigration law keywords — query must be somewhat related to these
 IMMIGRATION_KEYWORDS = [
     "visa", "immigration", "uscis", "petition", "asylum", "green card",
-    "work permit", "ead", "i-140", "i-485", "i-765", "i-131",
-    "h1b", "h4", "l1", "o1", "eb1", "eb2", "f1", "b1", "b2",
+    "work permit", "ead", "i-140", "i-485", "i-765", "i-131", "i-20", "i-94",
+    "h1b", "h4", "l1", "o1", "eb1", "eb2", "f1", "b1", "b2", "j1", "tn",
     "naturalization", "citizenship", "deportation", "removal",
     "appeal", "denial", "approval", "case", "filing", "form",
     "policy", "regulation", "section", "clause", "law", "rule",
@@ -32,6 +32,20 @@ IMMIGRATION_KEYWORDS = [
     "priority date", "labor certification", "perm", "ac21",
     "portability", "extension", "renewal", "status", "overstay",
     "cap", "lottery", "quota", "nonimmigrant", "beneficiary",
+    # F-1 / student pathways
+    "opt", "stem opt", "cpt", "sevis", "dso", "practical training",
+    "curricular practical", "optional practical", "student visa",
+    "stem degree", "grace period",
+]
+
+# Topic patterns that are clearly immigration even without keyword hits
+IMMIGRATION_TOPIC_PATTERNS = [
+    re.compile(r"\b(opt\b|stem\s+opt|cpt\b|curricular\s+practical)", re.I),
+    re.compile(r"\b(cap|lottery|lca\b|premium\s+processing)", re.I),
+    re.compile(r"\b(ead|work\s+auth|employment\s+authorization)", re.I),
+    re.compile(r"\b(adjustment\s+of\s+status|consular\s+processing)", re.I),
+    re.compile(r"\b(i-140|i-485|i-765|i-129|i-539|i-20|i-94)\b", re.I),
+    re.compile(r"\b(h[-\s]?1b|h[-\s]?4|l[-\s]?1|o[-\s]?1|eb[-\s]?[12]|f[-\s]?1)\b", re.I),
 ]
 
 # normalize hyphenated visa codes so "H-1B" matches keyword "h1b"
@@ -92,7 +106,17 @@ class ContentModerator:
 
     def _immigration_score(self, query: str) -> int:
         normalized = self._normalize_for_scope(query)
-        return sum(1 for kw in IMMIGRATION_KEYWORDS if kw in normalized)
+        score = 0
+        for kw in IMMIGRATION_KEYWORDS:
+            if len(kw) <= 4:
+                if re.search(rf"\b{re.escape(kw)}\b", normalized):
+                    score += 1
+            elif kw in normalized:
+                score += 1
+        return score
+
+    def _is_immigration_topic(self, query: str) -> bool:
+        return any(p.search(query) for p in IMMIGRATION_TOPIC_PATTERNS)
 
     def moderate(self, query: str) -> ModerationResult:
         """
@@ -122,7 +146,11 @@ class ContentModerator:
         immigration_score = self._immigration_score(query)
 
         # short queries get a pass — could be a follow-up ("what about that?")
-        if len(query.split()) > 6 and immigration_score == 0:
+        if (
+            len(query.split()) > 6
+            and immigration_score == 0
+            and not self._is_immigration_topic(query)
+        ):
             logger.warning(f"Query out of scope: '{query[:80]}'")
             return ModerationResult(
                 status=ModerationStatus.BLOCKED,
