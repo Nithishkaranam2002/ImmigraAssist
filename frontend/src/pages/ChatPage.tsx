@@ -1,4 +1,4 @@
-import { useState, useRef, useEffect } from "react"
+import { useState, useRef, useEffect, useCallback } from "react"
 import { Link, useLocation, useNavigate, useSearchParams } from "react-router-dom"
 import { useQuery, useQueryClient } from "@tanstack/react-query"
 import {
@@ -188,10 +188,27 @@ export function ChatPage() {
     }
   }
 
-  const handleHistorySelect = async (id: string) => {
-    setHistoryId(id)
-    try {
-      const item = await platformService.getHistoryItem(id)
+  const navState = (location.state || {}) as ChatLocationState
+  const qFromUrl = searchParams.get("q")
+  const historyFromUrl = searchParams.get("history")
+  const promptFromNav = navState.prompt || qFromUrl || undefined
+  const historyIdFromNav = navState.historyId || historyFromUrl || undefined
+  const navSignature = `${promptFromNav ?? ""}|${historyIdFromNav ?? ""}|${searchParams.get("matter") ?? ""}|${qFromUrl ?? ""}`
+
+  const [syncedNav, setSyncedNav] = useState(navSignature)
+  const [historyLoadId, setHistoryLoadId] = useState<string | null>(null)
+  if (navSignature !== syncedNav) {
+    setSyncedNav(navSignature)
+    if (promptFromNav) setInput(promptFromNav)
+    setHistoryLoadId(historyIdFromNav ?? null)
+  }
+
+  const { isError: historyDeepLinkFailed } = useQuery({
+    queryKey: ["chat-nav-history", historyLoadId],
+    queryFn: async () => {
+      if (!historyLoadId) throw new Error("missing history id")
+      const item = await platformService.getHistoryItem(historyLoadId)
+      setHistoryId(historyLoadId)
       loadFromHistory(item.query, {
         content: item.answer,
         next_steps: item.next_steps,
@@ -207,25 +224,49 @@ export function ChatPage() {
           : null,
       })
       setShowReferences(true)
+      return item
+    },
+    enabled: Boolean(historyLoadId),
+    staleTime: Infinity,
+    retry: false,
+  })
+
+  useEffect(() => {
+    if (historyDeepLinkFailed) toast("Failed to load history", "error")
+  }, [historyDeepLinkFailed])
+
+  const loadHistoryById = useCallback(async (id: string) => {
+    const item = await platformService.getHistoryItem(id)
+    setHistoryId(id)
+    loadFromHistory(item.query, {
+      content: item.answer,
+      next_steps: item.next_steps,
+      risks: item.risks,
+      related_forms: item.related_forms,
+      audit_log_id: item.id,
+      response_time_ms: item.response_time_ms,
+      visa_type_detected: item.visa_type,
+      confidence_score: item.confidence_score,
+      confidence_level: item.confidence_level,
+      confidence_label: item.confidence_level
+        ? `${item.confidence_level} confidence`
+        : null,
+    })
+    setShowReferences(true)
+  }, [loadFromHistory])
+
+  const handleHistorySelect = useCallback(async (id: string) => {
+    try {
+      await loadHistoryById(id)
     } catch {
       toast("Failed to load history", "error")
     }
-  }
+  }, [loadHistoryById])
 
   const navigationHandledRef = useRef<string | null>(null)
   useEffect(() => {
-    const state = (location.state || {}) as ChatLocationState
-    const qFromUrl = searchParams.get("q")
-    const historyFromUrl = searchParams.get("history")
-    const prompt = state.prompt || undefined
-    const historyId = state.historyId || historyFromUrl || undefined
-
-    const signature = `${prompt ?? ""}|${historyId ?? ""}|${searchParams.get("matter") ?? ""}|${qFromUrl ?? ""}`
-    if (navigationHandledRef.current === signature) return
-    navigationHandledRef.current = signature
-
-    if (prompt) setInput(prompt)
-    if (historyId) handleHistorySelect(historyId)
+    if (navigationHandledRef.current === navSignature) return
+    navigationHandledRef.current = navSignature
 
     const nextParams = new URLSearchParams(searchParams)
     let urlChanged = false
@@ -242,13 +283,22 @@ export function ChatPage() {
       setSearchParams(nextParams, { replace: true })
     }
 
-    if (state.prompt || state.historyId) {
+    if (navState.prompt || navState.historyId) {
       navigate(
         { pathname: location.pathname, search: nextParams.toString() ? `?${nextParams}` : "" },
         { replace: true, state: null }
       )
     }
-  }, [location.state, location.pathname, searchParams, setSearchParams, navigate])
+  }, [
+    navSignature,
+    searchParams,
+    setSearchParams,
+    navigate,
+    location.pathname,
+    navState.prompt,
+    navState.historyId,
+    qFromUrl,
+  ])
 
   const handleFeedback = async (auditLogId: string, isPositive: boolean) => {
     if (feedbackSent.has(auditLogId)) return
