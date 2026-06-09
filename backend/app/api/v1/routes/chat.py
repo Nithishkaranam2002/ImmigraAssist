@@ -374,6 +374,7 @@ async def _run_pipeline(
 
     law_chunks, case_chunks, court_cases = await _retrieve_all(
         query=retrieval_query,
+        user_query=clean_query,
         filter_context=filter_context,
         visa_type=filter_context.visa_type,
     )
@@ -559,6 +560,7 @@ async def _stream_pipeline(
 
         law_chunks, case_chunks, court_cases = await _retrieve_all(
             query=retrieval_query,
+            user_query=clean_query,
             filter_context=filter_context,
             visa_type=filter_context.visa_type,
         )
@@ -636,7 +638,12 @@ async def _stream_pipeline(
         yield f"data: {json.dumps({'type': 'error', 'message': str(e)})}\n\n"
 
 
-async def _retrieve_all(query, filter_context, visa_type) -> tuple:
+async def _retrieve_all(
+    query,
+    filter_context,
+    visa_type,
+    user_query: str | None = None,
+) -> tuple:
     scraper = CourtListenerScraper()
     try:
         try:
@@ -649,7 +656,7 @@ async def _retrieve_all(query, filter_context, visa_type) -> tuple:
 
         try:
             court_cases = await scraper.search(
-                query=query,
+                query=user_query or query,
                 visa_type=visa_type,
                 max_results=settings.COURTLISTENER_MAX_RESULTS,
             )
