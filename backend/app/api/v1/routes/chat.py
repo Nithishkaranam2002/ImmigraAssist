@@ -253,6 +253,61 @@ async def _save_query_meta(
         db.add(ReviewItem(audit_log_id=audit_log_id, status="pending"))
 
 
+async def _record_cached_response(
+    *,
+    db: AsyncSession,
+    current_user: User,
+    raw_query: str,
+    cached: dict,
+    matter_id: Optional[UUID],
+    session_id: UUID,
+    query_mode: str,
+    start_time: float,
+) -> dict:
+    """Persist a per-request audit row even when the answer body is cached."""
+    response_time_ms = int((time.time() - start_time) * 1000)
+    audit_log = AuditLog(
+        user_id=current_user.id,
+        query=raw_query,
+        answer=cached.get("answer"),
+        retrieved_law_chunks=json.dumps([]),
+        retrieved_case_chunks=json.dumps([]),
+        visa_type_detected=cached.get("visa_type_detected"),
+        response_time_ms=response_time_ms,
+        token_count=0,
+    )
+    db.add(audit_log)
+    await db.flush()
+
+    db.add(
+        ChatQueryMeta(
+            audit_log_id=audit_log.id,
+            matter_id=matter_id,
+            session_id=session_id,
+            confidence_score=cached.get("confidence_score"),
+            confidence_level=cached.get("confidence_level"),
+            next_steps=json.dumps(cached.get("next_steps") or []),
+            risks=json.dumps(cached.get("risks") or []),
+            related_forms=json.dumps(cached.get("related_forms") or []),
+            query_mode=query_mode,
+            from_cache=True,
+            needs_review=False,
+        )
+    )
+
+    response = dict(cached)
+    response.update(
+        {
+            "audit_log_id": str(audit_log.id),
+            "response_time_ms": response_time_ms,
+            "from_cache": True,
+            "session_id": str(session_id),
+            "matter_id": str(matter_id) if matter_id else None,
+        }
+    )
+    return response
+
+
 @router.post("/query", response_model=QueryResponse)
 async def query(
     body: QueryRequest,
@@ -272,12 +327,19 @@ async def query(
     clean_query = pii_result.redacted_text
 
     if not body.stream:
-        cached = await get_cached_response(clean_query, query_mode)
+        cached = await get_cached_response(clean_query, query_mode, current_user.id)
         if cached:
-            cached["from_cache"] = True
-            cached["session_id"] = str(session_id)
-            if body.matter_id:
-                cached["matter_id"] = str(body.matter_id)
+            async with session_scope() as db:
+                cached = await _record_cached_response(
+                    db=db,
+                    current_user=current_user,
+                    raw_query=body.query,
+                    cached=cached,
+                    matter_id=body.matter_id,
+                    session_id=session_id,
+                    query_mode=query_mode,
+                    start_time=start_time,
+                )
             return QueryResponse(**cached)
 
     if body.stream:
@@ -304,7 +366,7 @@ async def query(
         extra_context=None,
     )
 
-    await set_cached_response(clean_query, result, query_mode)
+    await set_cached_response(clean_query, result, query_mode, current_user.id)
     return QueryResponse(**result)
 
 
