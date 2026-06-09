@@ -97,10 +97,11 @@ class HybridRetriever:
         top_k: int,
     ) -> list[RetrievedChunk]:
 
-        expr = None
-        if document_ids:
-            id_list = '", "'.join(document_ids[:50])
-            expr = f'document_id in ["{id_list}"]'
+        if not document_ids:
+            return []
+
+        id_list = '", "'.join(document_ids[:50])
+        expr = f'document_id in ["{id_list}"]'
 
         if source == "law":
             output_fields = [

@@ -4,11 +4,12 @@ from app.db.redis import get_redis
 from app.utils.logger import logger
 
 CACHE_TTL = 3600
+CACHE_VERSION = "v2"
 
 
 def _cache_key(query: str, mode: str = "standard") -> str:
     normalized = query.lower().strip()
-    digest = hashlib.sha256(f"{mode}:{normalized}".encode()).hexdigest()[:32]
+    digest = hashlib.sha256(f"{CACHE_VERSION}:{mode}:{normalized}".encode()).hexdigest()[:32]
     return f"query_cache:{digest}"
 
 

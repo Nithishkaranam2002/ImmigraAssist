@@ -81,8 +81,13 @@ class MetadataFilter:
             law_doc_ids = await self._fetch_all_document_ids(db, DocumentType.LAW)
 
         if not case_doc_ids:
-            logger.warning("No case docs matched filter — using all case docs")
-            case_doc_ids = await self._fetch_all_document_ids(db, DocumentType.CASE)
+            if visa_type:
+                logger.warning(
+                    f"No case docs matched visa={visa_type} — skipping unrelated case search"
+                )
+            else:
+                logger.warning("No case docs matched filter — using all case docs")
+                case_doc_ids = await self._fetch_all_document_ids(db, DocumentType.CASE)
 
         return FilterContext(
             visa_type=visa_type,
