@@ -39,7 +39,10 @@ async def submit_feedback(
     """
     # verify audit log exists
     result = await db.execute(
-        select(AuditLog).where(AuditLog.id == body.audit_log_id)
+        select(AuditLog).where(
+            AuditLog.id == body.audit_log_id,
+            AuditLog.user_id == current_user.id,
+        )
     )
     audit_log = result.scalars().first()
     if not audit_log:

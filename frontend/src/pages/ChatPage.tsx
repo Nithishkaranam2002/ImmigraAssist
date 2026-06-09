@@ -101,11 +101,9 @@ export function ChatPage() {
   }, [messages, isLoading])
 
   useEffect(() => {
-    const matterFromUrl = searchParams.get("matter")
-    if (matterFromUrl) {
-      setMatterId(matterFromUrl)
-    }
-  }, [searchParams, setMatterId])
+    const matterFromUrl = new URLSearchParams(location.search).get("matter")
+    setMatterId(matterFromUrl)
+  }, [location.search, setMatterId])
 
   const activeMatter = matters?.find((m) => m.id === matterId)
 
@@ -274,6 +272,17 @@ export function ChatPage() {
     setSearchParams({})
   }
 
+  const handleMatterChange = (id: string | null) => {
+    setMatterId(id)
+    const nextParams = new URLSearchParams(searchParams)
+    if (id) {
+      nextParams.set("matter", id)
+    } else {
+      nextParams.delete("matter")
+    }
+    setSearchParams(nextParams, { replace: true })
+  }
+
   const lastAssistant = [...messages].reverse().find((m) => m.role === "assistant")
 
   const auditLogIds = messages
@@ -308,7 +317,7 @@ export function ChatPage() {
               <div className="relative">
                 <select
                   value={matterId || ""}
-                  onChange={(e) => setMatterId(e.target.value || null)}
+                  onChange={(e) => handleMatterChange(e.target.value || null)}
                   className="text-xs border border-slate-200 rounded-lg px-2 py-1.5 pr-7 bg-white text-slate-700 appearance-none"
                 >
                   <option value="">No matter</option>
@@ -658,7 +667,7 @@ export function ChatPage() {
         suggestedTitle={suggestedTitle}
         suggestedVisa={lastAssistant?.visa_type_detected || undefined}
         onAttached={(id) => {
-          setMatterId(id)
+          handleMatterChange(id)
           qc.invalidateQueries({ queryKey: ["matters"] })
         }}
       />

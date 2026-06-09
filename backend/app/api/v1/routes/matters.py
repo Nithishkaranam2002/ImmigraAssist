@@ -1,7 +1,7 @@
 from datetime import datetime, timezone
 from fastapi import APIRouter, Depends, HTTPException
 from sqlalchemy.ext.asyncio import AsyncSession
-from sqlalchemy import select, func
+from sqlalchemy import select, func, update
 from app.db.models.audit_log import AuditLog
 from app.db.models.chat_query_meta import ChatQueryMeta
 from pydantic import BaseModel
@@ -123,7 +123,7 @@ async def attach_research(
         await db.flush()
 
     audit_ids: list[UUID] = list(body.audit_log_ids)
-    if body.session_id and not audit_ids:
+    if body.session_id:
         result = await db.execute(
             select(ChatQueryMeta.audit_log_id)
             .join(AuditLog, AuditLog.id == ChatQueryMeta.audit_log_id)
@@ -132,7 +132,8 @@ async def attach_research(
                 AuditLog.user_id == current_user.id,
             )
         )
-        audit_ids = [row[0] for row in result.fetchall()]
+        session_audit_ids = [row[0] for row in result.fetchall()]
+        audit_ids = list(dict.fromkeys([*audit_ids, *session_audit_ids]))
 
     if not audit_ids:
         raise HTTPException(400, "No research queries to attach")
@@ -162,6 +163,9 @@ async def attach_research(
                 )
             )
             attached += 1
+
+    if attached == 0:
+        raise HTTPException(400, "No owned research queries to attach")
 
     matter.updated_at = datetime.now(timezone.utc)
     await db.commit()
@@ -224,6 +228,11 @@ async def delete_matter(
     matter = result.scalars().first()
     if not matter:
         raise HTTPException(404, "Matter not found")
+    await db.execute(
+        update(ChatQueryMeta)
+        .where(ChatQueryMeta.matter_id == matter.id)
+        .values(matter_id=None)
+    )
     await db.delete(matter)
     await db.commit()
     return {"message": "Deleted"}
