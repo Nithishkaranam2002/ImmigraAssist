@@ -135,13 +135,19 @@ export function LineTrend({ points, color = "#10b981" }: { points: TrendPoint[];
 
 export function DonutChart({ items }: { items: BarItem[] }) {
   const total = items.reduce((s, i) => s + i.value, 0) || 1
-  let offset = 0
-  const segments = items.map((item, i) => {
+  const segments = items.reduce<
+    Array<BarItem & { pct: number; offset: number; color: string }>
+  >((acc, item, i) => {
     const pct = item.value / total
-    const seg = { ...item, pct, offset, color: item.color || DEFAULT_COLORS[i % DEFAULT_COLORS.length] }
-    offset += pct
-    return seg
-  })
+    const offset = acc.length ? acc[acc.length - 1].offset + acc[acc.length - 1].pct : 0
+    acc.push({
+      ...item,
+      pct,
+      offset,
+      color: item.color || DEFAULT_COLORS[i % DEFAULT_COLORS.length],
+    })
+    return acc
+  }, [])
 
   return (
     <div className="h-full flex items-center gap-4">
