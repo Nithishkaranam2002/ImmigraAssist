@@ -213,7 +213,40 @@ export function ChatPage() {
         : null,
     })
     setShowReferences(true)
+    return item
   }, [loadFromHistory])
+
+  const [syncedNav, setSyncedNav] = useState<string | null>(null)
+  const [historyLoadRequest, setHistoryLoadRequest] = useState<{
+    signature: string
+    id: string
+  } | null>(null)
+  if (navSignature !== syncedNav && (promptFromNav || historyIdFromNav)) {
+    setSyncedNav(navSignature)
+    if (promptFromNav) setInput(promptFromNav)
+    if (historyIdFromNav) {
+      setHistoryLoadRequest({ signature: navSignature, id: historyIdFromNav })
+    }
+  }
+
+  const { isError: historyDeepLinkFailed } = useQuery({
+    queryKey: [
+      "chat-nav-history",
+      historyLoadRequest?.signature,
+      historyLoadRequest?.id,
+    ],
+    queryFn: async () => {
+      if (!historyLoadRequest) throw new Error("missing history id")
+      return loadHistoryById(historyLoadRequest.id)
+    },
+    enabled: Boolean(historyLoadRequest),
+    staleTime: Infinity,
+    retry: false,
+  })
+
+  useEffect(() => {
+    if (historyDeepLinkFailed) toast("Failed to load history", "error")
+  }, [historyDeepLinkFailed])
 
   const handleHistorySelect = useCallback(async (id: string) => {
     try {
@@ -227,16 +260,6 @@ export function ChatPage() {
   useEffect(() => {
     if (navigationHandledRef.current === navSignature) return
     navigationHandledRef.current = navSignature
-
-    if (promptFromNav) {
-      setInput(promptFromNav)
-    }
-
-    if (historyIdFromNav) {
-      loadHistoryById(historyIdFromNav).catch(() => {
-        toast("Failed to load history", "error")
-      })
-    }
 
     const nextParams = new URLSearchParams(searchParams)
     let urlChanged = false
@@ -259,15 +282,12 @@ export function ChatPage() {
     }
   }, [
     navSignature,
-    promptFromNav,
-    historyIdFromNav,
     searchParams,
     setSearchParams,
     navigate,
     location.pathname,
     navState.prompt,
     navState.historyId,
-    loadHistoryById,
   ])
 
   const handleFeedback = async (auditLogId: string, isPositive: boolean) => {
