@@ -91,6 +91,7 @@ export function ChatPage() {
   } = useChatStore()
   const { user } = useAuthStore()
 
+  const matterFromUrl = searchParams.get("matter")
   const { data: matters } = useQuery({
     queryKey: ["matters"],
     queryFn: matterService.list,
@@ -101,11 +102,8 @@ export function ChatPage() {
   }, [messages, isLoading])
 
   useEffect(() => {
-    const matterFromUrl = searchParams.get("matter")
-    if (matterFromUrl) {
-      setMatterId(matterFromUrl)
-    }
-  }, [searchParams, setMatterId])
+    setMatterId(matterFromUrl || null)
+  }, [matterFromUrl, setMatterId])
 
   const activeMatter = matters?.find((m) => m.id === matterId)
 
@@ -194,50 +192,11 @@ export function ChatPage() {
   const promptFromNav = navState.prompt || qFromUrl || undefined
   const historyIdFromNav = navState.historyId || historyFromUrl || undefined
   const navSignature = `${promptFromNav ?? ""}|${historyIdFromNav ?? ""}|${searchParams.get("matter") ?? ""}|${qFromUrl ?? ""}`
+  const navInstructionSignature = `${navState.prompt ?? ""}|${navState.historyId ?? ""}|${qFromUrl ?? ""}|${historyFromUrl ?? ""}`
 
-  const [syncedNav, setSyncedNav] = useState(navSignature)
-  const [historyLoadId, setHistoryLoadId] = useState<string | null>(null)
-  if (navSignature !== syncedNav) {
-    setSyncedNav(navSignature)
-    if (promptFromNav) setInput(promptFromNav)
-    setHistoryLoadId(historyIdFromNav ?? null)
-  }
-
-  const { isError: historyDeepLinkFailed } = useQuery({
-    queryKey: ["chat-nav-history", historyLoadId],
-    queryFn: async () => {
-      if (!historyLoadId) throw new Error("missing history id")
-      const item = await platformService.getHistoryItem(historyLoadId)
-      setHistoryId(historyLoadId)
-      loadFromHistory(item.query, {
-        content: item.answer,
-        next_steps: item.next_steps,
-        risks: item.risks,
-        related_forms: item.related_forms,
-        audit_log_id: item.id,
-        response_time_ms: item.response_time_ms,
-        visa_type_detected: item.visa_type,
-        confidence_score: item.confidence_score,
-        confidence_level: item.confidence_level,
-        confidence_label: item.confidence_level
-          ? `${item.confidence_level} confidence`
-          : null,
-      })
-      setShowReferences(true)
-      return item
-    },
-    enabled: Boolean(historyLoadId),
-    staleTime: Infinity,
-    retry: false,
-  })
-
-  useEffect(() => {
-    if (historyDeepLinkFailed) toast("Failed to load history", "error")
-  }, [historyDeepLinkFailed])
-
-  const loadHistoryById = useCallback(async (id: string) => {
-    const item = await platformService.getHistoryItem(id)
+  const applyHistoryItem = useCallback((id: string, item: Awaited<ReturnType<typeof platformService.getHistoryItem>>) => {
     setHistoryId(id)
+    setMatterId(item.matter_id)
     loadFromHistory(item.query, {
       content: item.answer,
       next_steps: item.next_steps,
@@ -251,9 +210,35 @@ export function ChatPage() {
       confidence_label: item.confidence_level
         ? `${item.confidence_level} confidence`
         : null,
-    })
+    }, item.session_id)
     setShowReferences(true)
-  }, [loadFromHistory])
+  }, [loadFromHistory, setMatterId])
+
+  const navHistoryRequestRef = useRef(0)
+  const navAppliedRef = useRef<string | null>(null)
+  useEffect(() => {
+    if (navAppliedRef.current === navInstructionSignature) return
+    navAppliedRef.current = navInstructionSignature
+
+    if (promptFromNav) setInput(promptFromNav)
+    if (!historyIdFromNav) return
+
+    const requestId = navHistoryRequestRef.current + 1
+    navHistoryRequestRef.current = requestId
+    platformService
+      .getHistoryItem(historyIdFromNav)
+      .then((item) => {
+        if (navHistoryRequestRef.current === requestId) {
+          applyHistoryItem(historyIdFromNav, item)
+        }
+      })
+      .catch(() => toast("Failed to load history", "error"))
+  }, [navInstructionSignature, promptFromNav, historyIdFromNav, applyHistoryItem])
+
+  const loadHistoryById = useCallback(async (id: string) => {
+    const item = await platformService.getHistoryItem(id)
+    applyHistoryItem(id, item)
+  }, [applyHistoryItem])
 
   const handleHistorySelect = useCallback(async (id: string) => {
     try {

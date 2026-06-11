@@ -1,6 +1,7 @@
 import time
 import json
 import uuid
+from types import SimpleNamespace
 from fastapi import APIRouter, Depends, HTTPException, status
 from fastapi.responses import StreamingResponse
 from sqlalchemy.ext.asyncio import AsyncSession
@@ -254,6 +255,65 @@ async def _save_query_meta(
         db.add(ReviewItem(audit_log_id=audit_log_id, status="pending"))
 
 
+async def _finalize_cached_response(
+    *,
+    db: AsyncSession,
+    current_user: User,
+    raw_query: str,
+    cached: dict,
+    matter_id: Optional[UUID],
+    session_id: UUID,
+    query_mode: str,
+    start_time: float,
+) -> dict:
+    """Persist a cache hit as this user's own query before returning it."""
+    response_time_ms = int((time.time() - start_time) * 1000)
+    audit_log = AuditLog(
+        user_id=current_user.id,
+        query=raw_query,
+        answer=cached.get("answer"),
+        retrieved_law_chunks=json.dumps([]),
+        retrieved_case_chunks=json.dumps([]),
+        visa_type_detected=cached.get("visa_type_detected"),
+        response_time_ms=response_time_ms,
+        token_count=0,
+    )
+    db.add(audit_log)
+    await db.flush()
+
+    confidence = SimpleNamespace(
+        score=cached.get("confidence_score"),
+        level=cached.get("confidence_level"),
+        needs_review=False,
+    )
+    parsed = SimpleNamespace(
+        next_steps=cached.get("next_steps") or [],
+        risks=cached.get("risks") or [],
+    )
+    await _save_query_meta(
+        db,
+        audit_log.id,
+        matter_id=matter_id,
+        session_id=session_id,
+        confidence=confidence,
+        parsed=parsed,
+        query_mode=query_mode,
+        from_cache=True,
+        related_forms=cached.get("related_forms") or [],
+    )
+    await db.refresh(audit_log)
+
+    result = dict(cached)
+    result.update(
+        audit_log_id=str(audit_log.id),
+        response_time_ms=response_time_ms,
+        from_cache=True,
+        session_id=str(session_id),
+        matter_id=str(matter_id) if matter_id else None,
+    )
+    return result
+
+
 @router.post("/query", response_model=QueryResponse)
 async def query(
     body: QueryRequest,
@@ -272,14 +332,22 @@ async def query(
     pii_result = pii_detector.detect_and_redact(body.query)
     clean_query = pii_result.redacted_text
 
-    if not body.stream:
+    cache_allowed = not body.stream and body.matter_id is None and body.session_id is None
+    if cache_allowed:
         cached = await get_cached_response(clean_query, query_mode)
         if cached:
-            cached["from_cache"] = True
-            cached["session_id"] = str(session_id)
-            if body.matter_id:
-                cached["matter_id"] = str(body.matter_id)
-            return QueryResponse(**cached)
+            async with session_scope() as db:
+                result = await _finalize_cached_response(
+                    db=db,
+                    current_user=current_user,
+                    raw_query=body.query,
+                    cached=cached,
+                    matter_id=body.matter_id,
+                    session_id=session_id,
+                    query_mode=query_mode,
+                    start_time=start_time,
+                )
+            return QueryResponse(**result)
 
     if body.stream:
         return StreamingResponse(
@@ -305,7 +373,11 @@ async def query(
         extra_context=None,
     )
 
-    await set_cached_response(clean_query, result, query_mode)
+    if cache_allowed:
+        cache_result = dict(result)
+        for user_scoped_key in ("audit_log_id", "session_id", "matter_id"):
+            cache_result.pop(user_scoped_key, None)
+        await set_cached_response(clean_query, cache_result, query_mode)
     return QueryResponse(**result)
 
 
