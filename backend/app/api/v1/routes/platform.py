@@ -163,6 +163,8 @@ async def get_history_item(
         "response_time_ms": log.response_time_ms,
         "confidence_score": meta.confidence_score if meta else None,
         "confidence_level": meta.confidence_level if meta else None,
+        "matter_id": str(meta.matter_id) if meta and meta.matter_id else None,
+        "session_id": str(meta.session_id) if meta and meta.session_id else None,
         "next_steps": json.loads(meta.next_steps) if meta and meta.next_steps else [],
         "risks": json.loads(meta.risks) if meta and meta.risks else [],
         "related_forms": json.loads(meta.related_forms) if meta and meta.related_forms else [],

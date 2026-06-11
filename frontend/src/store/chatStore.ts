@@ -38,7 +38,7 @@ interface ChatStore {
   setMatterId: (id: string | null) => void
   setCompareMode: (on: boolean) => void
   clearMessages: () => void
-  loadFromHistory: (query: string, data: Partial<Message>) => void
+  loadFromHistory: (query: string, data: Partial<Message>, sessionId?: string | null) => void
 }
 
 function newSessionId(): string {
@@ -119,9 +119,9 @@ export const useChatStore = create<ChatStore>((set) => ({
   clearMessages: () =>
     set({ messages: [], sessionId: newSessionId(), isLoading: false, matterId: null }),
 
-  loadFromHistory: (query, data) =>
+  loadFromHistory: (query, data, sessionId) =>
     set({
-      sessionId: newSessionId(),
+      sessionId: sessionId || newSessionId(),
       messages: [
         { id: generateId(), role: "user", content: query, timestamp: new Date() },
         {
