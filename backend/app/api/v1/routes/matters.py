@@ -1,7 +1,7 @@
 from datetime import datetime, timezone
 from fastapi import APIRouter, Depends, HTTPException
 from sqlalchemy.ext.asyncio import AsyncSession
-from sqlalchemy import select, func
+from sqlalchemy import select, func, update
 from app.db.models.audit_log import AuditLog
 from app.db.models.chat_query_meta import ChatQueryMeta
 from pydantic import BaseModel
@@ -224,6 +224,11 @@ async def delete_matter(
     matter = result.scalars().first()
     if not matter:
         raise HTTPException(404, "Matter not found")
+    await db.execute(
+        update(ChatQueryMeta)
+        .where(ChatQueryMeta.matter_id == matter_id)
+        .values(matter_id=None)
+    )
     await db.delete(matter)
     await db.commit()
     return {"message": "Deleted"}

@@ -271,9 +271,14 @@ async def query(
 
     pii_result = pii_detector.detect_and_redact(body.query)
     clean_query = pii_result.redacted_text
+    cache_scope = (
+        str(current_user.id)
+        if body.matter_id is None and body.session_id is None
+        else None
+    )
 
-    if not body.stream:
-        cached = await get_cached_response(clean_query, query_mode)
+    if not body.stream and cache_scope:
+        cached = await get_cached_response(clean_query, query_mode, scope=cache_scope)
         if cached:
             cached["from_cache"] = True
             cached["session_id"] = str(session_id)
@@ -305,7 +310,8 @@ async def query(
         extra_context=None,
     )
 
-    await set_cached_response(clean_query, result, query_mode)
+    if cache_scope:
+        await set_cached_response(clean_query, result, query_mode, scope=cache_scope)
     return QueryResponse(**result)
 
 

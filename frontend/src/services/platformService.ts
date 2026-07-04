@@ -96,6 +96,7 @@ export const platformService = {
     response_time_ms: number
     confidence_score: number | null
     confidence_level: string | null
+    matter_id: string | null
     next_steps: string[]
     risks: string[]
     related_forms: string[]

@@ -101,13 +101,24 @@ export function ChatPage() {
   }, [messages, isLoading])
 
   useEffect(() => {
-    const matterFromUrl = searchParams.get("matter")
-    if (matterFromUrl) {
-      setMatterId(matterFromUrl)
-    }
+    setMatterId(searchParams.get("matter"))
   }, [searchParams, setMatterId])
 
   const activeMatter = matters?.find((m) => m.id === matterId)
+
+  const syncMatterParam = useCallback((nextMatterId: string | null) => {
+    const normalizedMatterId = nextMatterId || null
+    setMatterId(normalizedMatterId)
+    if ((searchParams.get("matter") || null) === normalizedMatterId) return
+
+    const nextParams = new URLSearchParams(searchParams)
+    if (normalizedMatterId) {
+      nextParams.set("matter", normalizedMatterId)
+    } else {
+      nextParams.delete("matter")
+    }
+    setSearchParams(nextParams, { replace: true })
+  }, [searchParams, setMatterId, setSearchParams])
 
   const applyResponse = (response: Awaited<ReturnType<typeof chatService.query>>) => {
     updateLastAssistant({
@@ -209,6 +220,7 @@ export function ChatPage() {
       if (!historyLoadId) throw new Error("missing history id")
       const item = await platformService.getHistoryItem(historyLoadId)
       setHistoryId(historyLoadId)
+      syncMatterParam(item.matter_id)
       loadFromHistory(item.query, {
         content: item.answer,
         next_steps: item.next_steps,
@@ -238,6 +250,7 @@ export function ChatPage() {
   const loadHistoryById = useCallback(async (id: string) => {
     const item = await platformService.getHistoryItem(id)
     setHistoryId(id)
+    syncMatterParam(item.matter_id)
     loadFromHistory(item.query, {
       content: item.answer,
       next_steps: item.next_steps,
@@ -253,7 +266,7 @@ export function ChatPage() {
         : null,
     })
     setShowReferences(true)
-  }, [loadFromHistory])
+  }, [loadFromHistory, syncMatterParam])
 
   const handleHistorySelect = useCallback(async (id: string) => {
     try {
@@ -358,7 +371,7 @@ export function ChatPage() {
               <div className="relative">
                 <select
                   value={matterId || ""}
-                  onChange={(e) => setMatterId(e.target.value || null)}
+                  onChange={(e) => syncMatterParam(e.target.value || null)}
                   className="text-xs border border-slate-200 rounded-lg px-2 py-1.5 pr-7 bg-white text-slate-700 appearance-none"
                 >
                   <option value="">No matter</option>
