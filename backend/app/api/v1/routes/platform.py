@@ -166,6 +166,7 @@ async def get_history_item(
         "next_steps": json.loads(meta.next_steps) if meta and meta.next_steps else [],
         "risks": json.loads(meta.risks) if meta and meta.risks else [],
         "related_forms": json.loads(meta.related_forms) if meta and meta.related_forms else [],
+        "matter_id": str(meta.matter_id) if meta and meta.matter_id else None,
         "created_at": str(log.created_at),
     }
 
