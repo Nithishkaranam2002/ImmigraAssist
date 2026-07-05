@@ -102,9 +102,7 @@ export function ChatPage() {
 
   useEffect(() => {
     const matterFromUrl = searchParams.get("matter")
-    if (matterFromUrl) {
-      setMatterId(matterFromUrl)
-    }
+    setMatterId(matterFromUrl)
   }, [searchParams, setMatterId])
 
   const activeMatter = matters?.find((m) => m.id === matterId)
@@ -195,12 +193,12 @@ export function ChatPage() {
   const historyIdFromNav = navState.historyId || historyFromUrl || undefined
   const navSignature = `${promptFromNav ?? ""}|${historyIdFromNav ?? ""}|${searchParams.get("matter") ?? ""}|${qFromUrl ?? ""}`
 
-  const [syncedNav, setSyncedNav] = useState(navSignature)
+  const [syncedNav, setSyncedNav] = useState("")
   const [historyLoadId, setHistoryLoadId] = useState<string | null>(null)
   if (navSignature !== syncedNav) {
     setSyncedNav(navSignature)
     if (promptFromNav) setInput(promptFromNav)
-    setHistoryLoadId(historyIdFromNav ?? null)
+    if (historyIdFromNav) setHistoryLoadId(historyIdFromNav)
   }
 
   const { isError: historyDeepLinkFailed } = useQuery({
@@ -224,6 +222,7 @@ export function ChatPage() {
           : null,
       })
       setShowReferences(true)
+      setHistoryLoadId(null)
       return item
     },
     enabled: Boolean(historyLoadId),

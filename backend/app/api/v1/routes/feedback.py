@@ -37,9 +37,12 @@ async def submit_feedback(
     Submit thumbs up or down on an answer.
     Linked to the audit log entry for that query.
     """
-    # verify audit log exists
+    # Verify the answer belongs to this user before accepting feedback.
     result = await db.execute(
-        select(AuditLog).where(AuditLog.id == body.audit_log_id)
+        select(AuditLog).where(
+            AuditLog.id == body.audit_log_id,
+            AuditLog.user_id == current_user.id,
+        )
     )
     audit_log = result.scalars().first()
     if not audit_log:
