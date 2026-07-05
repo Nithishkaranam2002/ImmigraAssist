@@ -113,7 +113,16 @@ export const useChatStore = create<ChatStore>((set) => ({
     }),
 
   setLoading: (loading) => set({ isLoading: loading }),
-  setMatterId: (id) => set({ matterId: id }),
+  setMatterId: (id) =>
+    set((state) => {
+      if (state.matterId === id) return {}
+      return {
+        matterId: id,
+        messages: [],
+        sessionId: newSessionId(),
+        isLoading: false,
+      }
+    }),
   setCompareMode: (on) => set({ compareMode: on }),
 
   clearMessages: () =>
