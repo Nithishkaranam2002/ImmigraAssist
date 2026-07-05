@@ -4,19 +4,26 @@ from app.db.redis import get_redis
 from app.utils.logger import logger
 
 CACHE_TTL = 3600
-CACHE_VERSION = "v2"
+CACHE_VERSION = "v3"
 
 
-def _cache_key(query: str, mode: str = "standard") -> str:
+def _cache_key(query: str, mode: str = "standard", *, cache_scope: str) -> str:
     normalized = query.lower().strip()
-    digest = hashlib.sha256(f"{CACHE_VERSION}:{mode}:{normalized}".encode()).hexdigest()[:32]
+    digest = hashlib.sha256(
+        f"{CACHE_VERSION}:{cache_scope}:{mode}:{normalized}".encode()
+    ).hexdigest()[:32]
     return f"query_cache:{digest}"
 
 
-async def get_cached_response(query: str, mode: str = "standard") -> dict | None:
+async def get_cached_response(
+    query: str,
+    mode: str = "standard",
+    *,
+    cache_scope: str,
+) -> dict | None:
     try:
         redis = await get_redis()
-        data = await redis.get(_cache_key(query, mode))
+        data = await redis.get(_cache_key(query, mode, cache_scope=cache_scope))
         if data:
             logger.info("Query cache hit")
             return json.loads(data)
@@ -25,11 +32,17 @@ async def get_cached_response(query: str, mode: str = "standard") -> dict | None
     return None
 
 
-async def set_cached_response(query: str, response: dict, mode: str = "standard") -> None:
+async def set_cached_response(
+    query: str,
+    response: dict,
+    mode: str = "standard",
+    *,
+    cache_scope: str,
+) -> None:
     try:
         redis = await get_redis()
         await redis.setex(
-            _cache_key(query, mode),
+            _cache_key(query, mode, cache_scope=cache_scope),
             CACHE_TTL,
             json.dumps(response),
         )
