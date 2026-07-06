@@ -63,7 +63,13 @@ export function ChatPage() {
   const location = useLocation()
   const navigate = useNavigate()
   const [searchParams, setSearchParams] = useSearchParams()
-  const [input, setInput] = useState("")
+  const navState = (location.state || {}) as ChatLocationState
+  const qFromUrl = searchParams.get("q")
+  const historyFromUrl = searchParams.get("history")
+  const promptFromNav = navState.prompt || qFromUrl || undefined
+  const historyIdFromNav = navState.historyId || historyFromUrl || undefined
+  const navSignature = `${promptFromNav ?? ""}|${historyIdFromNav ?? ""}|${searchParams.get("matter") ?? ""}|${qFromUrl ?? ""}`
+  const [input, setInput] = useState(() => promptFromNav ?? "")
   const [docText, setDocText] = useState("")
   const [showDocQA, setShowDocQA] = useState(false)
   const [feedbackSent, setFeedbackSent] = useState<Set<string>>(new Set())
@@ -188,53 +194,6 @@ export function ChatPage() {
     }
   }
 
-  const navState = (location.state || {}) as ChatLocationState
-  const qFromUrl = searchParams.get("q")
-  const historyFromUrl = searchParams.get("history")
-  const promptFromNav = navState.prompt || qFromUrl || undefined
-  const historyIdFromNav = navState.historyId || historyFromUrl || undefined
-  const navSignature = `${promptFromNav ?? ""}|${historyIdFromNav ?? ""}|${searchParams.get("matter") ?? ""}|${qFromUrl ?? ""}`
-
-  const [syncedNav, setSyncedNav] = useState(navSignature)
-  const [historyLoadId, setHistoryLoadId] = useState<string | null>(null)
-  if (navSignature !== syncedNav) {
-    setSyncedNav(navSignature)
-    if (promptFromNav) setInput(promptFromNav)
-    setHistoryLoadId(historyIdFromNav ?? null)
-  }
-
-  const { isError: historyDeepLinkFailed } = useQuery({
-    queryKey: ["chat-nav-history", historyLoadId],
-    queryFn: async () => {
-      if (!historyLoadId) throw new Error("missing history id")
-      const item = await platformService.getHistoryItem(historyLoadId)
-      setHistoryId(historyLoadId)
-      loadFromHistory(item.query, {
-        content: item.answer,
-        next_steps: item.next_steps,
-        risks: item.risks,
-        related_forms: item.related_forms,
-        audit_log_id: item.id,
-        response_time_ms: item.response_time_ms,
-        visa_type_detected: item.visa_type,
-        confidence_score: item.confidence_score,
-        confidence_level: item.confidence_level,
-        confidence_label: item.confidence_level
-          ? `${item.confidence_level} confidence`
-          : null,
-      })
-      setShowReferences(true)
-      return item
-    },
-    enabled: Boolean(historyLoadId),
-    staleTime: Infinity,
-    retry: false,
-  })
-
-  useEffect(() => {
-    if (historyDeepLinkFailed) toast("Failed to load history", "error")
-  }, [historyDeepLinkFailed])
-
   const loadHistoryById = useCallback(async (id: string) => {
     const item = await platformService.getHistoryItem(id)
     setHistoryId(id)
@@ -254,6 +213,22 @@ export function ChatPage() {
     })
     setShowReferences(true)
   }, [loadFromHistory])
+
+  const { isError: historyDeepLinkFailed } = useQuery({
+    queryKey: ["chat-nav-history", historyIdFromNav],
+    queryFn: async () => {
+      if (!historyIdFromNav) throw new Error("missing history id")
+      await loadHistoryById(historyIdFromNav)
+      return historyIdFromNav
+    },
+    enabled: Boolean(historyIdFromNav),
+    staleTime: Infinity,
+    retry: false,
+  })
+
+  useEffect(() => {
+    if (historyDeepLinkFailed) toast("Failed to load history", "error")
+  }, [historyDeepLinkFailed])
 
   const handleHistorySelect = useCallback(async (id: string) => {
     try {
