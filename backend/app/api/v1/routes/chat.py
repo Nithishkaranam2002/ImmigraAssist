@@ -67,6 +67,12 @@ class QueryRequest(BaseModel):
     query_mode: str = "standard"
 
 
+def _query_cache_scope(body: QueryRequest, user_id: UUID, query_mode: str) -> str | None:
+    if body.matter_id or body.session_id or query_mode != "standard":
+        return None
+    return str(user_id)
+
+
 class DocQueryRequest(BaseModel):
     document_text: str = Field(..., max_length=50000)
     query: str
@@ -272,8 +278,9 @@ async def query(
     pii_result = pii_detector.detect_and_redact(body.query)
     clean_query = pii_result.redacted_text
 
-    if not body.stream:
-        cached = await get_cached_response(clean_query, query_mode)
+    cache_scope = _query_cache_scope(body, current_user.id, query_mode)
+    if not body.stream and cache_scope:
+        cached = await get_cached_response(clean_query, query_mode, scope=cache_scope)
         if cached:
             cached["from_cache"] = True
             cached["session_id"] = str(session_id)
@@ -305,7 +312,8 @@ async def query(
         extra_context=None,
     )
 
-    await set_cached_response(clean_query, result, query_mode)
+    if cache_scope:
+        await set_cached_response(clean_query, result, query_mode, scope=cache_scope)
     return QueryResponse(**result)
 
 
