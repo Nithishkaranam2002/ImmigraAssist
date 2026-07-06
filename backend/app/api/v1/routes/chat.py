@@ -26,7 +26,7 @@ from app.retrieval.context_builder import ContextBuilder
 from app.llm.prompt_builder import PromptBuilder
 from app.llm.gpt_client import GPTClient, GPTResponse
 from app.llm.response_parser import ResponseParser
-from app.retrieval.case_relevance import filter_case_chunks, filter_court_cases
+from app.retrieval.case_relevance import filter_court_cases
 from app.scrapers.courtlistener_scraper import CourtListenerScraper
 from app.services.confidence import compute_confidence
 from app.services.answer_quality import assess_and_enhance
@@ -65,6 +65,12 @@ class QueryRequest(BaseModel):
     matter_id: Optional[UUID] = None
     session_id: Optional[UUID] = None
     query_mode: str = "standard"
+
+
+def _query_cache_scope(body: QueryRequest, user_id: UUID, query_mode: str) -> str | None:
+    if body.matter_id or body.session_id or query_mode != "standard":
+        return None
+    return str(user_id)
 
 
 class DocQueryRequest(BaseModel):
@@ -272,8 +278,9 @@ async def query(
     pii_result = pii_detector.detect_and_redact(body.query)
     clean_query = pii_result.redacted_text
 
-    if not body.stream:
-        cached = await get_cached_response(clean_query, query_mode)
+    cache_scope = _query_cache_scope(body, current_user.id, query_mode)
+    if not body.stream and cache_scope:
+        cached = await get_cached_response(clean_query, query_mode, scope=cache_scope)
         if cached:
             cached["from_cache"] = True
             cached["session_id"] = str(session_id)
@@ -305,7 +312,8 @@ async def query(
         extra_context=None,
     )
 
-    await set_cached_response(clean_query, result, query_mode)
+    if cache_scope:
+        await set_cached_response(clean_query, result, query_mode, scope=cache_scope)
     return QueryResponse(**result)
 
 
@@ -383,9 +391,6 @@ async def _run_pipeline(
     law_chunks = await reranker.rerank(query=retrieval_query, chunks=law_chunks)
     case_chunks = await reranker.rerank(query=retrieval_query, chunks=case_chunks)
     case_chunks = await clustering.cluster_and_select(chunks=case_chunks)
-    case_chunks = filter_case_chunks(
-        case_chunks, query=clean_query, visa_type=filter_context.visa_type
-    )
 
     async with session_scope() as db:
         context = await context_builder.build(
@@ -574,9 +579,6 @@ async def _stream_pipeline(
         law_chunks = await reranker.rerank(query=retrieval_query, chunks=law_chunks)
         case_chunks = await reranker.rerank(query=retrieval_query, chunks=case_chunks)
         case_chunks = await clustering.cluster_and_select(chunks=case_chunks)
-        case_chunks = filter_case_chunks(
-            case_chunks, query=clean_query, visa_type=filter_context.visa_type
-        )
 
         async with session_scope() as db:
             context = await context_builder.build(

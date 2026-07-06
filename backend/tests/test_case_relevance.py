@@ -80,3 +80,22 @@ def test_filter_drops_irrelevant_chunks():
     )
     assert len(result) == 1
     assert "STEM OPT" in result[0].text
+
+
+def test_filter_uses_filename_signal_for_case_chunks():
+    chunk = _chunk("The director reviewed the petition and supporting evidence.")
+
+    without_filename = filter_case_chunks(
+        [chunk],
+        "How long is the STEM OPT extension?",
+        "f1",
+    )
+    with_filename = filter_case_chunks(
+        [chunk],
+        "How long is the STEM OPT extension?",
+        "f1",
+        filename_by_doc_id={"d1": "washtech_stem_opt_decision.pdf"},
+    )
+
+    assert without_filename == []
+    assert with_filename == [chunk]
