@@ -4,7 +4,17 @@ from app.db.redis import get_redis
 from app.utils.logger import logger
 
 CACHE_TTL = 3600
-CACHE_VERSION = "v2"
+CACHE_VERSION = "v3"
+
+
+def is_cacheable_query(
+    *,
+    matter_id: object | None = None,
+    session_id: object | None = None,
+    extra_context: object | None = None,
+) -> bool:
+    """Only stateless chat responses are safe to reuse across requests."""
+    return matter_id is None and session_id is None and extra_context is None
 
 
 def _cache_key(query: str, mode: str = "standard") -> str:
