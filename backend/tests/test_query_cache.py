@@ -21,4 +21,5 @@ def test_extra_context_query_is_not_cacheable():
 def test_cache_key_uses_current_version_namespace():
     key = query_cache._cache_key("What forms are needed?", "standard")
 
-    assert key == "query_cache:201d860f0fab8ed9e5716eb6bf696a2e"
+    assert query_cache.CACHE_VERSION == "v3"
+    assert key == "query_cache:03392c28a4af8174b33caa390f9f947a"
