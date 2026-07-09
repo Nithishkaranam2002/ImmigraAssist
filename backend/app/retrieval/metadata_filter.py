@@ -19,8 +19,8 @@ class FilterContext:
 
 VISA_PATTERNS = {
     "h1b": re.compile(r"\bh[-\s]?1b\b", re.IGNORECASE),
-    "h4": re.compile(r"\bh[-\s]?4\b", re.IGNORECASE),
     "h4_ead": re.compile(r"\bh[-\s]?4\s*ead\b", re.IGNORECASE),
+    "h4": re.compile(r"\bh[-\s]?4\b", re.IGNORECASE),
     "l1": re.compile(r"\bl[-\s]?1[ab]?\b", re.IGNORECASE),
     "o1": re.compile(r"\bo[-\s]?1\b", re.IGNORECASE),
     "eb1": re.compile(r"\beb[-\s]?1\b", re.IGNORECASE),
@@ -123,7 +123,9 @@ class MetadataFilter:
         if not law_doc_ids:
             law_doc_ids = filter_context.law_document_ids
         if not case_doc_ids:
-            case_doc_ids = filter_context.case_document_ids
+            logger.warning(
+                f"No case docs matched visa={visa_type} override — skipping unrelated case search"
+            )
 
         return FilterContext(
             visa_type=visa_type,
