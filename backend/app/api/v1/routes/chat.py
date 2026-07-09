@@ -31,7 +31,11 @@ from app.scrapers.courtlistener_scraper import CourtListenerScraper
 from app.services.confidence import compute_confidence
 from app.services.answer_quality import assess_and_enhance
 from app.services.form_mapper import get_forms_for_visa
-from app.services.query_cache import get_cached_response, set_cached_response
+from app.services.query_cache import (
+    get_cached_response,
+    is_cacheable_query,
+    set_cached_response,
+)
 from app.services.session_context import (
     SESSION_HISTORY_TURN_LIMIT,
     SessionHistory,
@@ -200,10 +204,7 @@ async def _load_matter_for_chat(
         + "\n\nWhen the user says \"here\", \"this client\", \"her/him\", or similar, "
         "use these matter notes for context. Do not invent client facts not stated above."
     )
-    visa = matter.visa_type or None
-    if visa == "h4_ead":
-        visa = "h4"
-    return text, visa
+    return text, matter.visa_type or None
 
 
 def _conversation_flags(
@@ -272,8 +273,14 @@ async def query(
     pii_result = pii_detector.detect_and_redact(body.query)
     clean_query = pii_result.redacted_text
 
-    if not body.stream:
-        cached = await get_cached_response(clean_query, query_mode)
+    cache_scope = str(current_user.id)
+    use_cache = not body.stream and is_cacheable_query(
+        matter_id=body.matter_id,
+        session_id=body.session_id,
+    )
+
+    if use_cache:
+        cached = await get_cached_response(clean_query, query_mode, scope=cache_scope)
         if cached:
             cached["from_cache"] = True
             cached["session_id"] = str(session_id)
@@ -305,7 +312,8 @@ async def query(
         extra_context=None,
     )
 
-    await set_cached_response(clean_query, result, query_mode)
+    if use_cache:
+        await set_cached_response(clean_query, result, query_mode, scope=cache_scope)
     return QueryResponse(**result)
 
 
