@@ -315,15 +315,14 @@ Only add renewal-specific items (prior EAD, I-797C receipt) when the user asks a
             parts.append(topic_guidance)
 
         context_text = context.context_text
-        if "## RELEVANT COURT DECISIONS" in context_text:
-            context_text = context_text.split("## RELEVANT COURT DECISIONS")[0].strip()
-
         law_refs = len(context.law_references)
         case_refs = len(context.case_references)
+        court_refs = len(context.court_case_references)
 
         if context_text:
             parts.append(
-                f"## REFERENCE MATERIAL ({law_refs} law sources, {case_refs} case sources)\n"
+                f"## REFERENCE MATERIAL ({law_refs} law sources, {case_refs} case sources, "
+                f"{court_refs} court decisions)\n"
                 f"Use ALL relevant facts from these sources. Do not omit numbers, dates, or fees.\n\n"
                 f"{context_text}"
             )
