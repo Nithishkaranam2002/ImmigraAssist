@@ -65,7 +65,12 @@ VISA_NORMALIZATIONS = [
 BLOCKED_PATTERNS = [
     re.compile(r"\b(ignore|forget|override)\s+(your\s+)?(instructions|rules|guidelines|system\s+prompt)\b", re.IGNORECASE),
     re.compile(r"\b(jailbreak|bypass|hack|exploit)\b", re.IGNORECASE),
-    re.compile(r"\b(pretend|act as|you are now|roleplay as)\b", re.IGNORECASE),
+    re.compile(r"\b(pretend|you are now|roleplay as)\b", re.IGNORECASE),
+    re.compile(
+        r"\bact as\s+(?:an?\s+|the\s+|my\s+|your\s+)?"
+        r"(?:ai|assistant|chatbot|chatgpt|system|developer|admin|root|jailbreak|dan|unfiltered|uncensored)\b",
+        re.IGNORECASE,
+    ),
     re.compile(r"\b(bomb|weapon|kill|murder|terrorist)\b", re.IGNORECASE),
     re.compile(r"(```|<script|<\/script|SELECT\s+\*\s+FROM)", re.IGNORECASE),  # injection attempts
 ]
