@@ -31,7 +31,11 @@ from app.scrapers.courtlistener_scraper import CourtListenerScraper
 from app.services.confidence import compute_confidence
 from app.services.answer_quality import assess_and_enhance
 from app.services.form_mapper import get_forms_for_visa
-from app.services.query_cache import get_cached_response, set_cached_response
+from app.services.query_cache import (
+    get_cached_response,
+    is_cacheable_chat_request,
+    set_cached_response,
+)
 from app.services.session_context import (
     SESSION_HISTORY_TURN_LIMIT,
     SessionHistory,
@@ -272,8 +276,17 @@ async def query(
     pii_result = pii_detector.detect_and_redact(body.query)
     clean_query = pii_result.redacted_text
 
-    if not body.stream:
-        cached = await get_cached_response(clean_query, query_mode)
+    use_cache = is_cacheable_chat_request(
+        stream=body.stream,
+        matter_id=body.matter_id,
+        session_id=body.session_id,
+    )
+    if use_cache:
+        cached = await get_cached_response(
+            clean_query,
+            query_mode,
+            str(current_user.id),
+        )
         if cached:
             cached["from_cache"] = True
             cached["session_id"] = str(session_id)
@@ -305,7 +318,13 @@ async def query(
         extra_context=None,
     )
 
-    await set_cached_response(clean_query, result, query_mode)
+    if use_cache:
+        await set_cached_response(
+            clean_query,
+            result,
+            query_mode,
+            str(current_user.id),
+        )
     return QueryResponse(**result)
 
 
