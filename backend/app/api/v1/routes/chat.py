@@ -13,7 +13,6 @@ from app.db.models.user import User
 from app.db.models.audit_log import AuditLog
 from app.db.models.chat_query_meta import ChatQueryMeta
 from app.db.models.review_item import ReviewItem
-from app.db.models.matter import Matter
 from app.api.v1.dependencies import get_current_user
 from app.guardrails.content_moderator import ContentModerator
 from app.guardrails.pii_detector import get_pii_detector
@@ -31,6 +30,7 @@ from app.scrapers.courtlistener_scraper import CourtListenerScraper
 from app.services.confidence import compute_confidence
 from app.services.answer_quality import assess_and_enhance
 from app.services.form_mapper import get_forms_for_visa
+from app.services.matter_access import require_owned_matter
 from app.services.query_cache import get_cached_response, set_cached_response
 from app.services.session_context import (
     SESSION_HISTORY_TURN_LIMIT,
@@ -177,12 +177,7 @@ async def _load_matter_for_chat(
     user_id: UUID,
 ) -> tuple[str | None, str | None]:
     """Return (prompt context block, visa_type) for the active matter."""
-    result = await db.execute(
-        select(Matter).where(Matter.id == matter_id, Matter.user_id == user_id)
-    )
-    matter = result.scalars().first()
-    if not matter:
-        return None, None
+    matter = await require_owned_matter(db, matter_id, user_id)
 
     lines = [
         f"Title: {matter.title}",
@@ -204,6 +199,16 @@ async def _load_matter_for_chat(
     if visa == "h4_ead":
         visa = "h4"
     return text, visa
+
+
+async def _validate_requested_matter(
+    matter_id: UUID | None,
+    user_id: UUID,
+) -> None:
+    if not matter_id:
+        return
+    async with session_scope() as db:
+        await require_owned_matter(db, matter_id, user_id)
 
 
 def _conversation_flags(
@@ -272,6 +277,8 @@ async def query(
     pii_result = pii_detector.detect_and_redact(body.query)
     clean_query = pii_result.redacted_text
 
+    await _validate_requested_matter(body.matter_id, current_user.id)
+
     if not body.stream:
         cached = await get_cached_response(clean_query, query_mode)
         if cached:
@@ -327,6 +334,8 @@ async def doc_query(
 
     pii_result = pii_detector.detect_and_redact(body.query)
     clean_query = pii_result.redacted_text
+
+    await _validate_requested_matter(body.matter_id, current_user.id)
 
     result = await _run_pipeline(
         current_user=current_user,
@@ -459,6 +468,9 @@ async def _finalize_response(
     start_time: float,
     from_cache: bool,
 ) -> dict:
+    if matter_id:
+        await require_owned_matter(db, matter_id, current_user.id)
+
     parsed = response_parser.parse(gpt_response)
     quality = assess_and_enhance(
         parsed=parsed,
