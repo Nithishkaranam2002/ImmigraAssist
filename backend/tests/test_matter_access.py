@@ -23,9 +23,8 @@ def test_require_owned_matter_returns_matching_matter():
 
     assert returned is matter
     statement = db.execute.await_args.args[0]
-    sql = str(statement)
-    assert "matters.id" in sql
-    assert "matters.user_id" in sql
+    filtered_columns = {criterion.left.key for criterion in statement._where_criteria}
+    assert filtered_columns == {"id", "user_id"}
 
 
 def test_require_owned_matter_hides_missing_or_foreign_matter():
