@@ -11,6 +11,7 @@ from app.db.postgres import get_db
 from app.db.models.user import User
 from app.db.models.matter import Matter
 from app.api.v1.dependencies import get_current_user
+from app.services.matter_access import detach_matter_research
 
 router = APIRouter(prefix="/matters", tags=["matters"])
 
@@ -224,6 +225,7 @@ async def delete_matter(
     matter = result.scalars().first()
     if not matter:
         raise HTTPException(404, "Matter not found")
+    await detach_matter_research(db, matter_id)
     await db.delete(matter)
     await db.commit()
     return {"message": "Deleted"}
