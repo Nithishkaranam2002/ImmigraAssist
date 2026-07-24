@@ -9,6 +9,7 @@ from app.db.postgres import get_db
 from app.db.models.user import User, UserRole
 from app.db.models.invite import Invite
 from app.api.v1.dependencies import require_role
+from app.core.permissions import can_assign_role
 from app.utils.logger import logger
 
 router = APIRouter(prefix="/invites", tags=["invites"])
@@ -41,6 +42,12 @@ async def create_invite(
     Create an invite link for a new attorney or admin.
     Admin only.
     """
+    if not can_assign_role(current_user.role, body.role):
+        raise HTTPException(
+            status_code=status.HTTP_403_FORBIDDEN,
+            detail="Cannot invite a role above your own level",
+        )
+
     token = secrets.token_urlsafe(32)
     expires_at = datetime.now(timezone.utc) + timedelta(days=7)
 
