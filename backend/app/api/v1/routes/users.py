@@ -6,6 +6,7 @@ from typing import Optional
 from app.db.postgres import get_db
 from app.db.models.user import User, UserRole
 from app.api.v1.dependencies import get_current_user, require_role
+from app.core.permissions import can_assign_role, can_manage_user
 from app.utils.logger import logger
 
 router = APIRouter(prefix="/users", tags=["users"])
@@ -85,6 +86,18 @@ async def update_user_role(
             detail="User not found",
         )
 
+    if not can_manage_user(current_user.role, user.role):
+        raise HTTPException(
+            status_code=status.HTTP_403_FORBIDDEN,
+            detail="Cannot modify a user with a higher role",
+        )
+
+    if not can_assign_role(current_user.role, body.role):
+        raise HTTPException(
+            status_code=status.HTTP_403_FORBIDDEN,
+            detail="Cannot assign a role above your own level",
+        )
+
     old_role = user.role
     user.role = body.role
     await db.commit()
@@ -112,6 +125,12 @@ async def deactivate_user(
         raise HTTPException(
             status_code=status.HTTP_404_NOT_FOUND,
             detail="User not found",
+        )
+
+    if not can_manage_user(current_user.role, user.role):
+        raise HTTPException(
+            status_code=status.HTTP_403_FORBIDDEN,
+            detail="Cannot deactivate a user with a higher role",
         )
 
     user.is_active = False
