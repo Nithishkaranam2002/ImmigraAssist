@@ -35,6 +35,47 @@ class TokenResponse(BaseModel):
     designation: Optional[str] = None
 
 
+async def _load_invite_for_registration(
+    db: AsyncSession,
+    token: str,
+    email: str,
+) -> Invite:
+    """
+    Load an invite for registration under a row lock.
+
+    SELECT ... FOR UPDATE serializes concurrent registrations that share the
+    same invite token so an email-less ("general") invite cannot mint multiple
+    privileged accounts before is_used is committed.
+    """
+    invite_result = await db.execute(
+        select(Invite).where(Invite.token == token).with_for_update()
+    )
+    invite = invite_result.scalars().first()
+
+    if not invite:
+        raise HTTPException(
+            status_code=status.HTTP_400_BAD_REQUEST,
+            detail="Invalid invite token",
+        )
+    if invite.is_used:
+        raise HTTPException(
+            status_code=status.HTTP_400_BAD_REQUEST,
+            detail="Invite already used",
+        )
+    if invite.expires_at < datetime.now(timezone.utc):
+        raise HTTPException(
+            status_code=status.HTTP_400_BAD_REQUEST,
+            detail="Invite has expired",
+        )
+    if invite.email and invite.email != email:
+        raise HTTPException(
+            status_code=status.HTTP_400_BAD_REQUEST,
+            detail="This invite was created for a different email",
+        )
+
+    return invite
+
+
 @router.post("/register", response_model=TokenResponse)
 async def register(
     body: RegisterRequest,
@@ -60,32 +101,9 @@ async def register(
     invite = None
 
     if body.invite_token:
-        invite_result = await db.execute(
-            select(Invite).where(Invite.token == body.invite_token)
+        invite = await _load_invite_for_registration(
+            db, body.invite_token, body.email
         )
-        invite = invite_result.scalars().first()
-
-        if not invite:
-            raise HTTPException(
-                status_code=status.HTTP_400_BAD_REQUEST,
-                detail="Invalid invite token",
-            )
-        if invite.is_used:
-            raise HTTPException(
-                status_code=status.HTTP_400_BAD_REQUEST,
-                detail="Invite already used",
-            )
-        if invite.expires_at < datetime.now(timezone.utc):
-            raise HTTPException(
-                status_code=status.HTTP_400_BAD_REQUEST,
-                detail="Invite has expired",
-            )
-        if invite.email and invite.email != body.email:
-            raise HTTPException(
-                status_code=status.HTTP_400_BAD_REQUEST,
-                detail="This invite was created for a different email",
-            )
-
         role = invite.role
         designation = invite.designation or body.designation
 
