@@ -142,7 +142,11 @@ async def _load_session_history(
         .limit(limit)
     )
     logs = list(reversed(result.scalars().all()))
-    return format_session_context(logs)
+    # AuditLog.query is stored raw; redact before prompt/retrieval reuse.
+    return format_session_context(
+        logs,
+        redact_query=lambda q: pii_detector.detect_and_redact(q).redacted_text,
+    )
 
 
 async def _prepare_query_context(

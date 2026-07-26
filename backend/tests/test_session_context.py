@@ -1,6 +1,10 @@
+from types import SimpleNamespace
+
+from app.guardrails.pii_detector import PIIDetector
 from app.services.session_context import (
     SessionHistory,
     expand_query_for_retrieval,
+    format_session_context,
     is_follow_up_query,
     is_forms_follow_up_query,
     is_new_topic_query,
@@ -86,3 +90,43 @@ def test_new_topic_skips_retrieval_expansion():
     )
     query = "What is the H-1B cap and how does the lottery work?"
     assert expand_query_for_retrieval(query, session, new_topic=True) == query
+
+
+def test_format_session_context_redacts_prior_query_pii():
+    """Follow-up context must not reintroduce raw AuditLog.query PII."""
+    detector = PIIDetector()
+    raw_query = (
+        "My client A-12345678 (SSN 123-45-6789, email client@example.com) "
+        "needs H-4 EAD eligibility."
+    )
+    logs = [
+        SimpleNamespace(
+            query=raw_query,
+            answer="File Form I-765 with supporting evidence.",
+            visa_type_detected="h4",
+        )
+    ]
+
+    history = format_session_context(
+        logs,
+        redact_query=lambda q: detector._regex_redact(q).redacted_text,
+    )
+
+    assert "A-12345678" not in history.text
+    assert "123-45-6789" not in history.text
+    assert "client@example.com" not in history.text
+    assert history.last_query is not None
+    assert "A-12345678" not in history.last_query
+    assert "123-45-6789" not in history.last_query
+    assert "client@example.com" not in history.last_query
+    assert "H-4 EAD" in history.last_query
+    assert history.last_visa_type == "h4"
+
+    expanded = expand_query_for_retrieval(
+        "What forms are needed for that?",
+        history,
+    )
+    assert "A-12345678" not in expanded
+    assert "123-45-6789" not in expanded
+    assert "client@example.com" not in expanded
+    assert "What forms are needed for that?" in expanded

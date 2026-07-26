@@ -1,4 +1,5 @@
 import re
+from collections.abc import Callable
 from dataclasses import dataclass
 
 SESSION_HISTORY_TURN_LIMIT = 10
@@ -179,16 +180,34 @@ def expand_query_for_retrieval(
     return query
 
 
-def format_session_context(logs: list) -> SessionHistory:
-    """Build conversation text and metadata from prior audit logs (oldest first)."""
+def _default_redact_query(text: str) -> str:
+    """Redact PII from prior queries before they re-enter prompts/retrieval."""
+    from app.guardrails.pii_detector import get_pii_detector
+
+    return get_pii_detector().detect_and_redact(text).redacted_text
+
+
+def format_session_context(
+    logs: list,
+    *,
+    redact_query: Callable[[str], str] | None = None,
+) -> SessionHistory:
+    """Build conversation text and metadata from prior audit logs (oldest first).
+
+    Audit logs intentionally store the raw user query for compliance, but
+    follow-up turns must not re-inject that raw PII into LLM prompts or
+    retrieval expansion. Queries are redacted here at use-time.
+    """
+    redact = redact_query or _default_redact_query
     parts: list[str] = []
     last_query: str | None = None
     last_visa_type: str | None = None
 
     for log in logs:
         snippet = (log.answer or "")[:SESSION_ANSWER_SNIPPET_CHARS]
-        parts.append(f"Q: {log.query}\nA: {snippet}")
-        last_query = log.query
+        safe_query = redact(log.query or "")
+        parts.append(f"Q: {safe_query}\nA: {snippet}")
+        last_query = safe_query
         if log.visa_type_detected:
             last_visa_type = log.visa_type_detected
 
