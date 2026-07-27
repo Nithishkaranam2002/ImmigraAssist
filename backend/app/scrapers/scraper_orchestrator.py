@@ -221,30 +221,25 @@ class ScraperOrchestrator:
             )
 
             if not change_result.should_process:
-                await self.change_detector.update_record(
-                    db=db,
-                    url=page.url,
-                    new_hash=change_result.new_hash,
-                    source_type=page.source_type,
-                    doc_type=page.doc_type,
-                    title=page.title,
-                    status=ScrapeStatus.UNCHANGED,
-                )
+                if not change_result.skip_status_update:
+                    await self.change_detector.update_record(
+                        db=db,
+                        url=page.url,
+                        new_hash=change_result.new_hash,
+                        source_type=page.source_type,
+                        doc_type=page.doc_type,
+                        title=page.title,
+                        status=ScrapeStatus.UNCHANGED,
+                    )
                 return "unchanged"
 
             # save content as temp file for ingestion
             file_path = await self._save_as_temp_file(page, content)
 
-            # trigger ingestion pipeline
-            from app.tasks.ingest_task import ingest_document_task
-            ingest_document_task.delay(
-                file_path=file_path,
-                filename=f"{page.source_type}_{self._url_to_filename(page.url)}.txt",
-                uploaded_by=scraper_user_id,
-            )
-
-            # update scrape record
-            status = (
+            # Final status is applied only after Celery ingest succeeds.
+            # Until then keep FAILED/INGEST_PENDING so retries can re-queue.
+            from app.scrapers.change_detector import INGEST_PENDING_MESSAGE
+            final_status = (
                 ScrapeStatus.NEW
                 if change_result.change_type == ChangeType.NEW
                 else ScrapeStatus.CHANGED
@@ -256,7 +251,18 @@ class ScraperOrchestrator:
                 source_type=page.source_type,
                 doc_type=page.doc_type,
                 title=page.title,
-                status=status,
+                status=ScrapeStatus.FAILED,
+                error_message=INGEST_PENDING_MESSAGE,
+            )
+
+            # trigger ingestion pipeline
+            from app.tasks.ingest_task import ingest_document_task
+            ingest_document_task.delay(
+                file_path=file_path,
+                filename=f"{page.source_type}_{self._url_to_filename(page.url)}.txt",
+                uploaded_by=scraper_user_id,
+                source_url=page.url,
+                scrape_final_status=final_status.value,
             )
 
             if page.source_type in ("uscis_news", "uscis_policy"):
@@ -269,10 +275,11 @@ class ScraperOrchestrator:
                         summary=summary,
                     )
                 )
+                await db.commit()
 
             logger.info(
-                f"{status.value.upper()}: {page.title[:60]} "
-                f"({len(content)} chars) → ingestion triggered"
+                f"{final_status.value.upper()} queued: {page.title[:60]} "
+                f"({len(content)} chars) → ingestion pending confirmation"
             )
 
             return change_result.change_type.value

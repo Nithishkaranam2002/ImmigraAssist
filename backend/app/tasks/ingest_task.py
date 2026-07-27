@@ -4,7 +4,9 @@ from sqlalchemy import select
 from app.tasks.celery_app import celery_app
 from app.db.postgres import AsyncSessionLocal
 from app.db.models.document import Document, DocumentStatus
+from app.db.models.scrape_record import ScrapeStatus
 from app.ingestion.pipeline import IngestionPipeline
+from app.scrapers.change_detector import ChangeDetector
 from app.utils.logger import logger
 import uuid
 
@@ -36,6 +38,8 @@ def ingest_document_task(
     file_path: str,
     filename: str,
     uploaded_by: str,
+    source_url: str | None = None,
+    scrape_final_status: str | None = None,
 ):
     """
     Background task for full document ingestion.
@@ -43,14 +47,41 @@ def ingest_document_task(
     Flow:
     1. Create async DB session
     2. Run IngestionPipeline
-    3. On success → trigger remap task if law doc
-    4. On failure → mark document as failed, retry up to 3 times
+    3. On success → trigger remap task if law doc; confirm scrape record
+    4. On failure → mark document as failed, retry up to 3 times;
+       after final failure mark scrape record failed when source_url set
     """
     logger.info(
         f"Celery ingest task started — "
         f"file: {filename}, "
         f"task_id: {self.request.id}"
     )
+
+    async def _confirm_scrape_success():
+        if not source_url or not scrape_final_status:
+            return
+        try:
+            final_status = ScrapeStatus(scrape_final_status)
+        except ValueError:
+            final_status = ScrapeStatus.CHANGED
+        async with AsyncSessionLocal() as db:
+            detector = ChangeDetector()
+            await detector.mark_ingest_complete(
+                db=db,
+                url=source_url,
+                final_status=final_status,
+            )
+
+    async def _confirm_scrape_failure(error: Exception):
+        if not source_url:
+            return
+        async with AsyncSessionLocal() as db:
+            detector = ChangeDetector()
+            await detector.mark_ingest_failed(
+                db=db,
+                url=source_url,
+                error_message=str(error),
+            )
 
     async def _run():
         async with AsyncSessionLocal() as db:
@@ -108,11 +139,23 @@ def ingest_document_task(
                 raise
 
     try:
-        return self.loop.run_until_complete(_run())
+        result = self.loop.run_until_complete(_run())
+        self.loop.run_until_complete(_confirm_scrape_success())
+        return result
     except Exception as exc:
         logger.error(
             f"Ingest task failed — "
             f"file: {filename}, "
-            f"attempt: {self.request.retries + 1}/3"
+            f"attempt: {self.request.retries + 1}/"
+            f"{(self.max_retries or 0) + 1}"
         )
+        is_final = self.request.retries >= (self.max_retries or 0)
+        if is_final:
+            try:
+                self.loop.run_until_complete(_confirm_scrape_failure(exc))
+            except Exception as scrape_err:
+                logger.error(
+                    f"Failed to mark scrape ingest failure: {scrape_err}"
+                )
+            raise
         raise self.retry(exc=exc)
