@@ -137,15 +137,16 @@ async def test_update_record_preserves_hash_on_empty_failure():
 
 @pytest.mark.asyncio
 async def test_process_page_marks_ingest_pending_not_new():
+    import sys
     from app.scrapers.scraper_orchestrator import ScraperOrchestrator
     from app.scrapers.change_detector import ChangeResult
 
     orch = ScraperOrchestrator()
     page = SimpleNamespace(
-        url="https://www.uscis.gov/policy-manual/volume-2",
-        title="Volume 2",
-        source_type="uscis_policy",
-        doc_type="law",
+        url="https://www.justice.gov/eoir/page/file/example",
+        title="BIA decision",
+        source_type="bia",
+        doc_type="case",
         content="full chapter text",
         metadata={},
     )
@@ -159,12 +160,13 @@ async def test_process_page_marks_ingest_pending_not_new():
 
     delayed = MagicMock()
     fake_task = SimpleNamespace(delay=delayed)
+    fake_module = SimpleNamespace(ingest_document_task=fake_task)
 
     with (
         patch.object(orch.change_detector, "check", AsyncMock(return_value=change)),
         patch.object(orch.change_detector, "update_record", AsyncMock()) as update_record,
         patch.object(orch, "_save_as_temp_file", AsyncMock(return_value="/tmp/x.txt")),
-        patch("app.tasks.ingest_task.ingest_document_task", fake_task),
+        patch.dict(sys.modules, {"app.tasks.ingest_task": fake_module}),
     ):
         db = AsyncMock()
         db.add = MagicMock()
