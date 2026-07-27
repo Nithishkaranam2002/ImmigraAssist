@@ -4,7 +4,7 @@ from typing import Optional
 from sqlalchemy.ext.asyncio import AsyncSession
 from sqlalchemy import select
 from app.db.models.chunk import Chunk as ChunkModel
-from app.db.models.document import Document, DocumentType
+from app.db.models.document import Document, DocumentType, DocumentStatus
 from app.utils.logger import logger
 
 
@@ -186,8 +186,12 @@ class MetadataFilter:
         year_min: Optional[int] = None,
         year_max: Optional[int] = None,
     ) -> list[str]:
-        """Fetch document IDs from PostgreSQL matching the filters."""
-        query = select(Document.id).where(Document.doc_type == doc_type)
+        """Fetch completed document IDs from PostgreSQL matching the filters."""
+        query = (
+            select(Document.id)
+            .where(Document.doc_type == doc_type)
+            .where(Document.status == DocumentStatus.COMPLETED)
+        )
 
         if visa_type:
             query = query.where(Document.visa_type == visa_type)
@@ -202,6 +206,8 @@ class MetadataFilter:
         doc_type: DocumentType,
     ) -> list[str]:
         result = await db.execute(
-            select(Document.id).where(Document.doc_type == doc_type)
+            select(Document.id)
+            .where(Document.doc_type == doc_type)
+            .where(Document.status == DocumentStatus.COMPLETED)
         )
         return [str(row[0]) for row in result.fetchall()]
