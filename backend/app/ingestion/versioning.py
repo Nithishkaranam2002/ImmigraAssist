@@ -1,5 +1,5 @@
 from sqlalchemy.ext.asyncio import AsyncSession
-from sqlalchemy import select, update
+from sqlalchemy import select
 from app.db.models.document import Document, DocumentType, DocumentStatus
 from app.utils.logger import logger
 import uuid
@@ -49,21 +49,20 @@ class DocumentVersionManager:
         new_version: int,
     ):
         """
-        Mark all previous versions of this doc as superseded in metadata.
-        We don't delete — just flag them.
+        Reserve a supersession hook for prior versions.
+
+        Previously this forced status=COMPLETED on every older row, which
+        resurrected FAILED ingest attempts into the retrievable corpus.
+        True supersession needs an is_latest (or equivalent) flag; until
+        that exists, leave prior statuses untouched.
         """
         if new_version <= 1:
             return
 
-        await db.execute(
-            update(Document)
-            .where(Document.filename == filename)
-            .where(Document.version < new_version)
-            .values(status=DocumentStatus.COMPLETED)
-            # in future you could add a `is_latest` boolean flag here
+        logger.info(
+            f"New version v{new_version} for '{filename}' — "
+            f"prior versions left unchanged pending is_latest support"
         )
-        await db.commit()
-        logger.info(f"Marked previous versions of '{filename}' as superseded")
 
     async def create_document_record(
         self,
