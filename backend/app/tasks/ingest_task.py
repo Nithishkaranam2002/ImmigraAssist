@@ -1,9 +1,7 @@
 import asyncio
 from celery import Task
-from sqlalchemy import select
 from app.tasks.celery_app import celery_app
 from app.db.postgres import AsyncSessionLocal
-from app.db.models.document import Document, DocumentStatus
 from app.ingestion.pipeline import IngestionPipeline
 from app.utils.logger import logger
 import uuid
@@ -89,22 +87,11 @@ def ingest_document_task(
                 logger.error(
                     f"Ingestion failed for '{filename}': {e}"
                 )
-                # mark document as failed in DB
-                try:
-                    result = await db.execute(
-                        select(Document).where(
-                            Document.filename == filename
-                        )
-                    )
-                    doc = result.scalars().first()
-                    if doc:
-                        doc.status = DocumentStatus.FAILED
-                        doc.error_message = str(e)
-                        await db.commit()
-                except Exception as db_error:
-                    logger.error(
-                        f"Failed to update document status: {db_error}"
-                    )
+                # IngestionPipeline.run already marks its own doc_record FAILED
+                # when a new version row was created. Do NOT look up by
+                # filename here — that can mark a prior COMPLETED corpus
+                # document FAILED when parse/classify fails before a new
+                # row exists, or when .first() returns the wrong version.
                 raise
 
     try:
