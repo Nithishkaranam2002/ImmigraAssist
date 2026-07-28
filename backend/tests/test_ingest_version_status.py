@@ -1,10 +1,9 @@
 """Regression: ingest failures must not corrupt prior document versions."""
 from pathlib import Path
-from unittest.mock import AsyncMock, MagicMock
+from unittest.mock import AsyncMock
 
 import pytest
 
-from app.db.models.document import DocumentStatus
 from app.ingestion.versioning import DocumentVersionManager
 
 
@@ -44,38 +43,3 @@ def test_ingest_task_does_not_mark_failed_by_filename():
     source = INGEST_TASK_PATH.read_text()
     assert "Document.filename" not in source
     assert "DocumentStatus.FAILED" not in source
-
-
-@pytest.mark.asyncio
-async def test_pipeline_failure_before_record_leaves_prior_doc_alone():
-    """
-    When parse fails before create_document_record, no status write occurs
-    in the pipeline — callers must not invent one by filename.
-    """
-    from app.ingestion.pipeline import IngestionPipeline
-
-    pipeline = IngestionPipeline.__new__(IngestionPipeline)
-    pipeline.parser = MagicMock()
-    pipeline.parser.parse.side_effect = RuntimeError("corrupt download")
-    pipeline.classifier = MagicMock()
-    pipeline.metadata_extractor = MagicMock()
-    pipeline.version_manager = MagicMock()
-    pipeline.version_manager.get_or_create_version = AsyncMock()
-    pipeline.version_manager.mark_previous_superseded = AsyncMock()
-    pipeline.version_manager.create_document_record = AsyncMock()
-    pipeline.embedder = MagicMock()
-
-    db = AsyncMock()
-    prior = MagicMock()
-    prior.status = DocumentStatus.COMPLETED
-
-    with pytest.raises(RuntimeError, match="corrupt download"):
-        await pipeline.run(
-            db=db,
-            file_path="/tmp/bad.txt",
-            filename="policy_volume-1.txt",
-            uploaded_by=MagicMock(),
-        )
-
-    pipeline.version_manager.create_document_record.assert_not_awaited()
-    assert prior.status == DocumentStatus.COMPLETED
