@@ -173,6 +173,10 @@ export function ChatPage() {
           }
         }
 
+        // Await fallback inside onError so isLoading stays true until the
+        // non-stream retry finishes. Fire-and-forget previously let users send
+        // Q2 while Q1's fallback was still running, and updateLastAssistant
+        // then wrote Q1's answer onto Q2's bubble.
         await chatService.queryStream(baseReq, {
           onChunk: (chunk) => appendToLastAssistant(chunk),
           onDone: (response) => applyResponse(response),

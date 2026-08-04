@@ -45,7 +45,8 @@ export interface QueryResponse {
 export interface StreamCallbacks {
   onChunk: (text: string) => void
   onDone: (response: QueryResponse) => void
-  onError: (message: string) => void
+  /** May return a Promise so callers can finish fallback work before stream settles. */
+  onError: (message: string) => void | Promise<void>
 }
 
 function streamErrorMessage(status: number, detail: unknown): string {
@@ -64,9 +65,13 @@ export const chatService = {
   },
 
   async queryStream(data: QueryRequest, callbacks: StreamCallbacks): Promise<void> {
+    const emitError = async (message: string) => {
+      await Promise.resolve(callbacks.onError(message))
+    }
+
     const token = localStorage.getItem("access_token")
     if (!token) {
-      callbacks.onError("Session expired. Please log in again.")
+      await emitError("Session expired. Please log in again.")
       return
     }
 
@@ -81,13 +86,13 @@ export const chatService = {
 
     if (!res.ok) {
       const err = await res.json().catch(() => ({ detail: "Request failed" }))
-      callbacks.onError(streamErrorMessage(res.status, err.detail))
+      await emitError(streamErrorMessage(res.status, err.detail))
       return
     }
 
     const reader = res.body?.getReader()
     if (!reader) {
-      callbacks.onError("No response stream")
+      await emitError("No response stream")
       return
     }
 
@@ -108,7 +113,7 @@ export const chatService = {
         const payload = line.slice(6).trim()
         if (payload === "[DONE]") {
           if (!completed) {
-            callbacks.onError("Response ended unexpectedly. Retrying…")
+            await emitError("Response ended unexpectedly. Retrying…")
           }
           return
         }
@@ -121,7 +126,7 @@ export const chatService = {
             completed = true
             callbacks.onDone(event as QueryResponse)
           } else if (event.type === "error") {
-            callbacks.onError(event.message || "Something went wrong. Please try again.")
+            await emitError(event.message || "Something went wrong. Please try again.")
             return
           }
         } catch {
@@ -131,7 +136,7 @@ export const chatService = {
     }
 
     if (!completed) {
-      callbacks.onError("Response ended unexpectedly. Retrying…")
+      await emitError("Response ended unexpectedly. Retrying…")
     }
   },
 
