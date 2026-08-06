@@ -32,6 +32,7 @@ from app.services.confidence import compute_confidence
 from app.services.answer_quality import assess_and_enhance
 from app.services.form_mapper import get_forms_for_visa
 from app.services.query_cache import get_cached_response, set_cached_response
+from app.services.doc_query_limits import DOC_QUERY_MAX_CHARS, prepare_document_text
 from app.services.session_context import (
     SESSION_HISTORY_TURN_LIMIT,
     SessionHistory,
@@ -68,7 +69,7 @@ class QueryRequest(BaseModel):
 
 
 class DocQueryRequest(BaseModel):
-    document_text: str = Field(..., max_length=50000)
+    document_text: str = Field(..., max_length=DOC_QUERY_MAX_CHARS)
     query: str
     matter_id: Optional[UUID] = None
     session_id: Optional[UUID] = None
@@ -322,7 +323,7 @@ async def doc_query(
     if not mod_result.is_safe:
         raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail=mod_result.reason)
 
-    doc_text = body.document_text[:30000]
+    doc_text = prepare_document_text(body.document_text)
     extra = f"## CLIENT DOCUMENT (for review)\n{doc_text}"
 
     pii_result = pii_detector.detect_and_redact(body.query)
