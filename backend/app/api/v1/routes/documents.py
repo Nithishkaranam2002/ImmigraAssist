@@ -1,5 +1,3 @@
-import os
-import uuid
 import aiofiles
 from fastapi import APIRouter, Depends, HTTPException, UploadFile, File, status
 from sqlalchemy.ext.asyncio import AsyncSession
@@ -11,6 +9,7 @@ from app.db.models.user import User, UserRole
 from app.db.models.document import Document, DocumentStatus
 from app.api.v1.dependencies import get_current_user, require_role
 from app.config import settings
+from app.services.upload_paths import UnsafeUploadFilename, build_upload_path
 from app.utils.logger import logger
 
 router = APIRouter(prefix="/documents", tags=["documents"])
@@ -42,12 +41,15 @@ async def upload_document(
     Saves file to disk and triggers async ingestion.
     Admin only.
     """
-    # validate file type
-    if not file.filename.endswith(".pdf"):
+    try:
+        safe_filename, file_path = build_upload_path(
+            settings.UPLOAD_DIR, file.filename
+        )
+    except UnsafeUploadFilename as exc:
         raise HTTPException(
             status_code=status.HTTP_400_BAD_REQUEST,
-            detail="Only PDF files are accepted",
-        )
+            detail=str(exc),
+        ) from exc
 
     # validate file size
     max_bytes = settings.MAX_UPLOAD_SIZE_MB * 1024 * 1024
@@ -58,11 +60,6 @@ async def upload_document(
             detail=f"File exceeds {settings.MAX_UPLOAD_SIZE_MB}MB limit",
         )
 
-    # save file to disk
-    os.makedirs(settings.UPLOAD_DIR, exist_ok=True)
-    unique_filename = f"{uuid.uuid4()}_{file.filename}"
-    file_path = os.path.join(settings.UPLOAD_DIR, unique_filename)
-
     async with aiofiles.open(file_path, "wb") as f:
         await f.write(content)
 
@@ -72,13 +69,13 @@ async def upload_document(
     from app.tasks.ingest_task import ingest_document_task
     task = ingest_document_task.delay(
         file_path=file_path,
-        filename=file.filename,
+        filename=safe_filename,
         uploaded_by=str(current_user.id),
     )
 
     return {
         "message": "Document uploaded successfully. Ingestion started.",
-        "filename": file.filename,
+        "filename": safe_filename,
         "task_id": task.id,
     }
 
