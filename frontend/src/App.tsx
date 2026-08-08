@@ -1,6 +1,6 @@
 import { lazy, Suspense } from "react"
 import { BrowserRouter, Routes, Route, Navigate } from "react-router-dom"
-import { QueryClient, QueryClientProvider } from "@tanstack/react-query"
+import { QueryClientProvider } from "@tanstack/react-query"
 import { ErrorBoundary } from "@/components/ErrorBoundary"
 import { Toaster } from "@/components/ui/toaster"
 import { AppLayout } from "@/components/layout/AppLayout"
@@ -19,20 +19,12 @@ import { ResearchHubPage } from "@/pages/ResearchHubPage"
 import { ResearchVisaPage } from "@/pages/ResearchVisaPage"
 import { ReviewQueuePage } from "@/pages/ReviewQueuePage"
 import { Loader2 } from "lucide-react"
+import { queryClient } from "@/lib/queryClient"
 
 const EvalDashboardPage = lazy(() =>
   import("@/pages/EvalDashboardPage").then((m) => ({ default: m.EvalDashboardPage }))
 )
 import { AlertsPage } from "@/pages/AlertsPage"
-
-const queryClient = new QueryClient({
-  defaultOptions: {
-    queries: {
-      retry: 1,
-      staleTime: 30000,
-    },
-  },
-})
 
 export default function App() {
   return (

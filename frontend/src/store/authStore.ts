@@ -1,5 +1,6 @@
 import { create } from "zustand"
 import type { User, UserRole } from "@/types"
+import { resetClientState } from "@/lib/resetClientState"
 
 interface AuthState {
   user: User | null
@@ -23,6 +24,9 @@ export const useAuthStore = create<AuthState>((set, get) => ({
   isAuthenticated: !!localStorage.getItem("access_token"),
 
   setAuth: (token, user) => {
+    // Drop any prior user's in-memory chat/query cache before activating
+    // the new session (SPA login does not reload the page).
+    resetClientState()
     localStorage.setItem("access_token", token)
     localStorage.setItem("user", JSON.stringify(user))
     set({ token, user, isAuthenticated: true })
@@ -32,6 +36,7 @@ export const useAuthStore = create<AuthState>((set, get) => ({
     localStorage.removeItem("access_token")
     localStorage.removeItem("user")
     set({ token: null, user: null, isAuthenticated: false })
+    resetClientState()
   },
 
   hasRole: (role) => {
