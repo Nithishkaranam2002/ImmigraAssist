@@ -80,7 +80,6 @@ export function ChatPage() {
     sessionId,
     matterId,
     compareMode,
-    requestGeneration,
     addUserMessage,
     addAssistantMessage,
     updateAssistant,
