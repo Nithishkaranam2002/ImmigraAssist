@@ -71,6 +71,7 @@ export function ChatPage() {
   const [historyId, setHistoryId] = useState<string>()
   const [showAddToMatter, setShowAddToMatter] = useState(false)
   const bottomRef = useRef<HTMLDivElement>(null)
+  const abortRef = useRef<AbortController | null>(null)
   const qc = useQueryClient()
 
   const {
@@ -81,8 +82,8 @@ export function ChatPage() {
     compareMode,
     addUserMessage,
     addAssistantMessage,
-    updateLastAssistant,
-    appendToLastAssistant,
+    updateAssistant,
+    appendToAssistant,
     setLoading,
     setMatterId,
     setCompareMode,
@@ -109,34 +110,46 @@ export function ChatPage() {
 
   const activeMatter = matters?.find((m) => m.id === matterId)
 
-  const applyResponse = (response: Awaited<ReturnType<typeof chatService.query>>) => {
-    updateLastAssistant({
-      content: response.answer,
-      cited_laws: response.cited_laws,
-      cited_cases: response.cited_cases,
-      court_cases: response.court_cases,
-      important_notes: response.important_notes,
-      next_steps: response.next_steps,
-      risks: response.risks,
-      related_forms: response.related_forms,
-      audit_log_id: response.audit_log_id,
-      response_time_ms: response.response_time_ms,
-      visa_type_detected: response.visa_type_detected,
-      confidence_score: response.confidence_score,
-      confidence_level: response.confidence_level,
-      confidence_label: response.confidence_label,
-      from_cache: response.from_cache,
-    })
-    setShowReferences(true)
-  }
-
   const handleSend = async () => {
     if (!input.trim() || isLoading) return
     const query = input.trim()
     setInput("")
     setLoading(true)
+
+    abortRef.current?.abort()
+    const abortController = new AbortController()
+    abortRef.current = abortController
+
+    // Capture generation before mutating messages so clear/history can invalidate us.
+    const startedGeneration = useChatStore.getState().requestGeneration
     addUserMessage(query)
-    addAssistantMessage({ content: "", isStreaming: true })
+    const assistantId = addAssistantMessage({ content: "", isStreaming: true })
+    const isCurrent = () =>
+      !abortController.signal.aborted &&
+      useChatStore.getState().requestGeneration === startedGeneration
+
+    const applyResponse = (response: Awaited<ReturnType<typeof chatService.query>>) => {
+      if (!isCurrent()) return
+      updateAssistant(assistantId, {
+        content: response.answer,
+        cited_laws: response.cited_laws,
+        cited_cases: response.cited_cases,
+        court_cases: response.court_cases,
+        important_notes: response.important_notes,
+        next_steps: response.next_steps,
+        risks: response.risks,
+        related_forms: response.related_forms,
+        audit_log_id: response.audit_log_id,
+        response_time_ms: response.response_time_ms,
+        visa_type_detected: response.visa_type_detected,
+        confidence_score: response.confidence_score,
+        confidence_level: response.confidence_level,
+        confidence_label: response.confidence_label,
+        from_cache: response.from_cache,
+        isStreaming: false,
+      })
+      setShowReferences(true)
+    }
 
     const baseReq = {
       query,
@@ -157,34 +170,60 @@ export function ChatPage() {
       } else {
         let usedFallback = false
         const runFallback = async (msg: string) => {
+          if (!isCurrent()) return
           if (usedFallback) {
-            updateLastAssistant({ content: msg || "Something went wrong. Please try again." })
+            updateAssistant(assistantId, {
+              content: msg || "Something went wrong. Please try again.",
+              isStreaming: false,
+            })
             return
           }
           usedFallback = true
-          updateLastAssistant({ content: "Generating answer…", isStreaming: false })
+          updateAssistant(assistantId, {
+            content: "Generating answer…",
+            isStreaming: false,
+          })
           try {
             const response = await chatService.query(baseReq)
             applyResponse(response)
           } catch (err: unknown) {
-            updateLastAssistant({
-              content: getApiErrorMessage(err, msg || "Something went wrong. Please try again."),
+            if (!isCurrent()) return
+            updateAssistant(assistantId, {
+              content: getApiErrorMessage(
+                err,
+                msg || "Something went wrong. Please try again."
+              ),
+              isStreaming: false,
             })
           }
         }
 
-        await chatService.queryStream(baseReq, {
-          onChunk: (chunk) => appendToLastAssistant(chunk),
-          onDone: (response) => applyResponse(response),
-          onError: (msg) => runFallback(msg),
-        })
+        await chatService.queryStream(
+          baseReq,
+          {
+            onChunk: (chunk) => {
+              if (!isCurrent()) return
+              appendToAssistant(assistantId, chunk)
+            },
+            onDone: (response) => applyResponse(response),
+            onError: (msg) => runFallback(msg),
+          },
+          { signal: abortController.signal }
+        )
       }
     } catch (err: unknown) {
-      updateLastAssistant({
+      if (!isCurrent()) return
+      updateAssistant(assistantId, {
         content: getApiErrorMessage(err, "Something went wrong. Please try again."),
+        isStreaming: false,
       })
     } finally {
-      setLoading(false)
+      if (abortRef.current === abortController) {
+        abortRef.current = null
+      }
+      if (isCurrent()) {
+        setLoading(false)
+      }
     }
   }
 
@@ -256,6 +295,11 @@ export function ChatPage() {
   }, [loadFromHistory])
 
   const handleHistorySelect = useCallback(async (id: string) => {
+    if (useChatStore.getState().isLoading) {
+      toast("Wait for the current answer to finish before loading history", "error")
+      return
+    }
+    abortRef.current?.abort()
     try {
       await loadHistoryById(id)
     } catch {
@@ -319,6 +363,7 @@ export function ChatPage() {
   }
 
   const handleClear = () => {
+    abortRef.current?.abort()
     clearMessages()
     setHistoryId(undefined)
     setSearchParams({})
@@ -345,7 +390,11 @@ export function ChatPage() {
 
   return (
     <div className="flex h-full relative">
-      <HistorySidebar onSelect={handleHistorySelect} activeId={historyId} />
+      <HistorySidebar
+        onSelect={handleHistorySelect}
+        activeId={historyId}
+        disabled={isLoading}
+      />
 
       <div className="flex flex-col flex-1 min-w-0">
         <div className="flex items-center justify-between px-4 sm:px-6 py-4 border-b border-slate-200 bg-white shrink-0 gap-2 flex-wrap">
@@ -416,7 +465,7 @@ export function ChatPage() {
               </Badge>
             )}
             {messages.length > 0 && (
-              <Button variant="ghost" size="sm" onClick={handleClear}>
+              <Button variant="ghost" size="sm" onClick={handleClear} disabled={isLoading}>
                 <Trash2 className="w-4 h-4 mr-1" /> Clear
               </Button>
             )}

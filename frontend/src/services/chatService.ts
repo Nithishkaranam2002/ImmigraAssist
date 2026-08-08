@@ -45,7 +45,11 @@ export interface QueryResponse {
 export interface StreamCallbacks {
   onChunk: (text: string) => void
   onDone: (response: QueryResponse) => void
-  onError: (message: string) => void
+  onError: (message: string) => void | Promise<void>
+}
+
+export interface StreamOptions {
+  signal?: AbortSignal
 }
 
 function streamErrorMessage(status: number, detail: unknown): string {
@@ -57,37 +61,57 @@ function streamErrorMessage(status: number, detail: unknown): string {
   return formatApiDetail(detail, "Request failed")
 }
 
+async function emitError(
+  callbacks: StreamCallbacks,
+  message: string
+): Promise<void> {
+  await Promise.resolve(callbacks.onError(message))
+}
+
 export const chatService = {
   async query(data: QueryRequest): Promise<QueryResponse> {
     const response = await api.post<QueryResponse>("/chat/query", { ...data, stream: false })
     return response.data
   },
 
-  async queryStream(data: QueryRequest, callbacks: StreamCallbacks): Promise<void> {
+  async queryStream(
+    data: QueryRequest,
+    callbacks: StreamCallbacks,
+    options?: StreamOptions
+  ): Promise<void> {
     const token = localStorage.getItem("access_token")
     if (!token) {
-      callbacks.onError("Session expired. Please log in again.")
+      await emitError(callbacks, "Session expired. Please log in again.")
       return
     }
 
-    const res = await fetch("/api/v1/chat/query", {
-      method: "POST",
-      headers: {
-        "Content-Type": "application/json",
-        Authorization: `Bearer ${token}`,
-      },
-      body: JSON.stringify({ ...data, stream: true }),
-    })
+    let res: Response
+    try {
+      res = await fetch("/api/v1/chat/query", {
+        method: "POST",
+        headers: {
+          "Content-Type": "application/json",
+          Authorization: `Bearer ${token}`,
+        },
+        body: JSON.stringify({ ...data, stream: true }),
+        signal: options?.signal,
+      })
+    } catch (err: unknown) {
+      if (options?.signal?.aborted) return
+      if (err instanceof Error && err.name === "AbortError") return
+      await emitError(callbacks, "Network error. Retrying…")
+      return
+    }
 
     if (!res.ok) {
       const err = await res.json().catch(() => ({ detail: "Request failed" }))
-      callbacks.onError(streamErrorMessage(res.status, err.detail))
+      await emitError(callbacks, streamErrorMessage(res.status, err.detail))
       return
     }
 
     const reader = res.body?.getReader()
     if (!reader) {
-      callbacks.onError("No response stream")
+      await emitError(callbacks, "No response stream")
       return
     }
 
@@ -95,43 +119,82 @@ export const chatService = {
     let buffer = ""
     let completed = false
 
-    while (true) {
-      const { done, value } = await reader.read()
-      if (done) break
-
-      buffer += decoder.decode(value, { stream: true })
-      const lines = buffer.split("\n")
-      buffer = lines.pop() || ""
-
-      for (const line of lines) {
-        if (!line.startsWith("data: ")) continue
-        const payload = line.slice(6).trim()
-        if (payload === "[DONE]") {
-          if (!completed) {
-            callbacks.onError("Response ended unexpectedly. Retrying…")
-          }
-          return
+    try {
+      while (true) {
+        const { done, value } = await reader.read()
+        if (done) {
+          buffer += decoder.decode()
+          break
         }
 
-        try {
-          const event = JSON.parse(payload)
-          if (event.type === "chunk") {
-            callbacks.onChunk(event.content)
-          } else if (event.type === "done") {
-            completed = true
-            callbacks.onDone(event as QueryResponse)
-          } else if (event.type === "error") {
-            callbacks.onError(event.message || "Something went wrong. Please try again.")
+        buffer += decoder.decode(value, { stream: true })
+        const lines = buffer.split("\n")
+        buffer = lines.pop() || ""
+
+        for (const line of lines) {
+          if (!line.startsWith("data: ")) continue
+          const payload = line.slice(6).trim()
+          if (payload === "[DONE]") {
+            if (!completed) {
+              await emitError(callbacks, "Response ended unexpectedly. Retrying…")
+            }
             return
           }
-        } catch {
-          // skip malformed lines
+
+          try {
+            const event = JSON.parse(payload)
+            if (event.type === "chunk") {
+              callbacks.onChunk(event.content)
+            } else if (event.type === "done") {
+              completed = true
+              callbacks.onDone(event as QueryResponse)
+            } else if (event.type === "error") {
+              await emitError(
+                callbacks,
+                event.message || "Something went wrong. Please try again."
+              )
+              return
+            }
+          } catch {
+            // skip malformed lines
+          }
         }
       }
+
+      // Flush any trailing SSE line left without a final newline.
+      if (buffer.trim()) {
+        const payload = buffer.startsWith("data: ")
+          ? buffer.slice(6).trim()
+          : buffer.trim()
+        if (payload && payload !== "[DONE]") {
+          try {
+            const event = JSON.parse(payload)
+            if (event.type === "done") {
+              completed = true
+              callbacks.onDone(event as QueryResponse)
+            } else if (event.type === "error") {
+              await emitError(
+                callbacks,
+                event.message || "Something went wrong. Please try again."
+              )
+              return
+            } else if (event.type === "chunk") {
+              callbacks.onChunk(event.content)
+            }
+          } catch {
+            // ignore trailing garbage
+          }
+        }
+      }
+    } catch (err: unknown) {
+      if (options?.signal?.aborted) return
+      if (err instanceof Error && err.name === "AbortError") return
+      await emitError(callbacks, "Response ended unexpectedly. Retrying…")
+      return
     }
 
-    if (!completed) {
-      callbacks.onError("Response ended unexpectedly. Retrying…")
+    if (!completed && !options?.signal?.aborted) {
+      await emitError(callbacks, "Response ended unexpectedly. Retrying…")
     }
   },
 
