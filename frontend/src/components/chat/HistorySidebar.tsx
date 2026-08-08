@@ -6,9 +6,10 @@ import { cn } from "@/lib/utils"
 interface HistorySidebarProps {
   onSelect: (id: string) => void
   activeId?: string
+  disabled?: boolean
 }
 
-export function HistorySidebar({ onSelect, activeId }: HistorySidebarProps) {
+export function HistorySidebar({ onSelect, activeId, disabled }: HistorySidebarProps) {
   const { data, isLoading } = useQuery({
     queryKey: ["query-history"],
     queryFn: () => platformService.getHistory(25),
@@ -37,9 +38,11 @@ export function HistorySidebar({ onSelect, activeId }: HistorySidebarProps) {
           <button
             key={item.id}
             type="button"
+            disabled={disabled}
             onClick={() => onSelect(item.id)}
             className={cn(
               "w-full text-left px-2.5 py-2 rounded-lg text-xs transition-colors",
+              disabled && "opacity-50 cursor-not-allowed",
               activeId === item.id
                 ? "bg-brand-50 text-brand-800 border border-brand-200"
                 : "text-slate-600 hover:bg-slate-50"
