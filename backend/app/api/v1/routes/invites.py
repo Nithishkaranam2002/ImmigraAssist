@@ -21,6 +21,8 @@ class CreateInviteRequest(BaseModel):
 
 
 class InviteResponse(BaseModel):
+    """Returned once at create time — includes the secret invite token/link."""
+
     id: str
     token: str
     email: Optional[str]
@@ -31,6 +33,29 @@ class InviteResponse(BaseModel):
     is_used: bool
 
 
+class InviteListItem(BaseModel):
+    """Metadata-only invite view. Never includes plaintext token or invite link."""
+
+    id: str
+    email: Optional[str]
+    role: str
+    designation: Optional[str]
+    expires_at: str
+    is_used: bool
+
+
+def _invite_list_item(invite: Invite) -> InviteListItem:
+    """Serialize an invite for listing without exposing reusable secrets."""
+    return InviteListItem(
+        id=str(invite.id),
+        email=invite.email,
+        role=invite.role.value if hasattr(invite.role, "value") else str(invite.role),
+        designation=invite.designation,
+        expires_at=str(invite.expires_at),
+        is_used=bool(invite.is_used),
+    )
+
+
 @router.post("/", response_model=InviteResponse)
 async def create_invite(
     body: CreateInviteRequest,
@@ -39,7 +64,7 @@ async def create_invite(
 ):
     """
     Create an invite link for a new attorney or admin.
-    Admin only.
+    Admin only. The plaintext token is returned only here.
     """
     token = secrets.token_urlsafe(32)
     expires_at = datetime.now(timezone.utc) + timedelta(days=7)
@@ -115,26 +140,19 @@ async def validate_invite(
     }
 
 
-@router.get("/", response_model=list[InviteResponse])
+@router.get("/", response_model=list[InviteListItem])
 async def list_invites(
     db: AsyncSession = Depends(get_db),
     current_user: User = Depends(require_role(UserRole.ADMIN)),
 ):
-    """List all invites. Admin only."""
+    """
+    List invites. Admin only.
+
+    Tokens are intentionally omitted: listing must not re-expose unused
+    invite secrets that enable privilege escalation via /auth/register.
+    """
     result = await db.execute(
         select(Invite).order_by(Invite.created_at.desc())
     )
     invites = result.scalars().all()
-    return [
-        InviteResponse(
-            id=str(i.id),
-            token=i.token,
-            email=i.email,
-            role=i.role.value,
-            designation=i.designation,
-            invite_link=f"http://localhost:5173/signup?token={i.token}",
-            expires_at=str(i.expires_at),
-            is_used=i.is_used,
-        )
-        for i in invites
-    ]
+    return [_invite_list_item(i) for i in invites]
