@@ -200,9 +200,8 @@ async def _load_matter_for_chat(
         + "\n\nWhen the user says \"here\", \"this client\", \"her/him\", or similar, "
         "use these matter notes for context. Do not invent client facts not stated above."
     )
+    # Keep h4_ead as-is so Vol 10 employment-auth policy stays in scope.
     visa = matter.visa_type or None
-    if visa == "h4_ead":
-        visa = "h4"
     return text, visa
 
 
