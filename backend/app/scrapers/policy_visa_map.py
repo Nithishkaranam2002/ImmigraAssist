@@ -3,10 +3,14 @@ import re
 from typing import Optional
 
 # (volume, part_letter) -> primary visa_type tag
+# Only map parts where the visa_type is a faithful primary label for retrieval.
+# Mis-tags poison hybrid search (wrong corpus for that visa filter).
 VOLUME_PART_VISA: dict[tuple[int, str], str] = {
+    (2, "f"): "f1",        # Students (F, M)
     (2, "h"): "h1b",       # Specialty Occupation Workers (H-1B, E-3)
-    (2, "f"): "l1",        # Intracompany Transferees (L-1)
-    (2, "g"): "o1",        # Extraordinary ability (O-1)
+    # Vol 2 Part G = Treaty Traders/Investors (E) — no supported e2 tag; leave unmapped
+    (2, "l"): "l1",        # Intracompany Transferees (L)
+    (2, "m"): "o1",        # Nonimmigrants of Extraordinary Ability or Achievement (O)
     (4, "a"): "asylum",
     (4, "b"): "asylum",
     (4, "c"): "asylum",
@@ -17,16 +21,14 @@ VOLUME_PART_VISA: dict[tuple[int, str], str] = {
     (6, "b"): "green_card",
     (6, "d"): "eb1",
     (6, "e"): "eb2",
-    (6, "f"): "l1",
-    (6, "g"): "o1",
-    (6, "h"): "f1",
+    # Vol 6 Part F = Employment-Based Classifications (multi EB) — leave unmapped
+    # Vol 6 Part G = Investors (EB-5) — leave unmapped (was wrongly "o1")
+    # Vol 6 Part H = Designated and Special Immigrants — leave unmapped (was wrongly "f1")
     (7, "a"): "green_card",
     (7, "b"): "green_card",
     (10, "a"): "h4_ead",
     (10, "b"): "h4_ead",
-    (12, "a"): "f1",
-    (12, "b"): "f1",
-    (12, "d"): "f1",
+    # Vol 12 = Citizenship and Naturalization — must NOT be tagged f1; leave unmapped
 }
 
 CHAPTER_URL_PATTERN = re.compile(

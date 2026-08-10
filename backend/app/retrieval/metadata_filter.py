@@ -17,10 +17,11 @@ class FilterContext:
     case_document_ids: list[str]      # filtered case doc IDs
 
 
+# h4_ead MUST be checked before h4 — otherwise "H-4 EAD" matches h4 first.
 VISA_PATTERNS = {
     "h1b": re.compile(r"\bh[-\s]?1b\b", re.IGNORECASE),
-    "h4": re.compile(r"\bh[-\s]?4\b", re.IGNORECASE),
     "h4_ead": re.compile(r"\bh[-\s]?4\s*ead\b", re.IGNORECASE),
+    "h4": re.compile(r"\bh[-\s]?4\b", re.IGNORECASE),
     "l1": re.compile(r"\bl[-\s]?1[ab]?\b", re.IGNORECASE),
     "o1": re.compile(r"\bo[-\s]?1\b", re.IGNORECASE),
     "eb1": re.compile(r"\beb[-\s]?1\b", re.IGNORECASE),
@@ -30,7 +31,13 @@ VISA_PATTERNS = {
     "f1": re.compile(r"\bf[-\s]?1\b", re.IGNORECASE),
 }
 
-YEAR_PATTERN = re.compile(r"\b(19|20)\d{2}\b")
+EAD_TERMS_RE = re.compile(
+    r"\b(ead|work\s+auth|employment\s+authorization|i-765|\(c\)\(26\))\b",
+    re.IGNORECASE,
+)
+H4_TERM_RE = re.compile(r"\bh[-\s]?4\b", re.IGNORECASE)
+
+YEAR_PATTERN = re.compile(r"\b((?:19|20)\d{2})\b")
 
 
 class MetadataFilter:
@@ -53,6 +60,7 @@ class MetadataFilter:
         visa_type = self._detect_visa_type(query)
         if not visa_type:
             visa_type = self._infer_visa_from_topic(query)
+        visa_type = self._upgrade_h4_ead(query, visa_type)
         year_min, year_max = self._detect_year_range(query)
 
         logger.info(
@@ -139,6 +147,12 @@ class MetadataFilter:
                 return visa_type
         return None
 
+    def _upgrade_h4_ead(self, query: str, visa_type: Optional[str]) -> Optional[str]:
+        """Promote bare h4 to h4_ead when EAD / I-765 terms appear in the query."""
+        if visa_type == "h4" and EAD_TERMS_RE.search(query):
+            return "h4_ead"
+        return visa_type
+
     def _infer_visa_from_topic(self, query: str) -> Optional[str]:
         """Map topic keywords to visa when explicit code is omitted."""
         q = query.lower()
@@ -148,7 +162,9 @@ class MetadataFilter:
             return "f1"
         if re.search(r"\bperm\b|labor\s+certification", q):
             return "eb2"
-        if re.search(r"\b(ead|work\s+auth|employment\s+authorization)\b", q):
+        # Only map generic EAD language to H-4 EAD when H-4 is also present.
+        # Bare "employment authorization" covers many categories (OPT, asylum, AOS, etc.).
+        if H4_TERM_RE.search(q) and EAD_TERMS_RE.search(q):
             return "h4_ead"
         return None
 
