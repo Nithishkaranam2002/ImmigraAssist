@@ -131,10 +131,15 @@ class ContentModerator:
                 is_safe=False,
             )
 
+        # Never log raw query text — it may contain client PII (SSN, A-number, DOB).
+        query_len = len(query.strip())
+
         # ── Layer 1: Hard block patterns ───────────────────────────────
         for pattern in BLOCKED_PATTERNS:
             if pattern.search(query):
-                logger.warning(f"Query blocked by hard pattern: '{query[:80]}'")
+                logger.warning(
+                    f"Query blocked by hard pattern (len={query_len})"
+                )
                 return ModerationResult(
                     status=ModerationStatus.BLOCKED,
                     reason="Query contains prohibited content",
@@ -151,7 +156,7 @@ class ContentModerator:
             and immigration_score == 0
             and not self._is_immigration_topic(query)
         ):
-            logger.warning(f"Query out of scope: '{query[:80]}'")
+            logger.warning(f"Query out of scope (len={query_len})")
             return ModerationResult(
                 status=ModerationStatus.BLOCKED,
                 reason=(
@@ -166,7 +171,7 @@ class ContentModerator:
         # ── Layer 3: Warning check ─────────────────────────────────────
         for pattern in WARNING_PATTERNS:
             if pattern.search(query):
-                logger.info(f"Query flagged with warning: '{query[:80]}'")
+                logger.info(f"Query flagged with warning (len={query_len})")
                 return ModerationResult(
                     status=ModerationStatus.WARNING,
                     reason="Query contains sensitive terms — proceed with caution",

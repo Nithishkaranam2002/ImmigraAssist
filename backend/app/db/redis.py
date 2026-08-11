@@ -1,3 +1,4 @@
+import re
 import redis.asyncio as aioredis
 from app.config import settings
 from app.utils.logger import logger
@@ -5,6 +6,13 @@ from app.utils.logger import logger
 
 # single async redis client reused across the app
 _redis_client: aioredis.Redis | None = None
+
+_REDIS_PASSWORD_IN_URL = re.compile(r"(redis://:)([^@]+)(@)")
+
+
+def _redact_redis_url(url: str) -> str:
+    """Strip password from redis://:password@host URLs before logging."""
+    return _REDIS_PASSWORD_IN_URL.sub(r"\1***\3", url)
 
 
 async def get_redis() -> aioredis.Redis:
@@ -20,7 +28,9 @@ async def get_redis() -> aioredis.Redis:
             decode_responses=True,
             max_connections=20,
         )
-        logger.info(f"Redis client connected at {settings.REDIS_URL}")
+        logger.info(
+            f"Redis client connected at {_redact_redis_url(settings.REDIS_URL)}"
+        )
     return _redis_client
 
 

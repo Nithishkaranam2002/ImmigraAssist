@@ -263,14 +263,16 @@ async def query(
     session_id = body.session_id or uuid.uuid4()
     query_mode = body.query_mode if body.query_mode in ("standard", "compare") else "standard"
 
-    logger.info(f"Query from {current_user.email}: '{body.query[:80]}...' mode={query_mode}")
-
     mod_result = moderator.moderate(body.query)
     if not mod_result.is_safe:
         raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail=mod_result.reason)
 
     pii_result = pii_detector.detect_and_redact(body.query)
     clean_query = pii_result.redacted_text
+    # Log only after redaction — raw queries may contain SSN / A-numbers / DOB.
+    logger.info(
+        f"Query from {current_user.email}: '{clean_query[:80]}...' mode={query_mode}"
+    )
 
     if not body.stream:
         cached = await get_cached_response(clean_query, query_mode)
