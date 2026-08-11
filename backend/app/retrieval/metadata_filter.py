@@ -2,9 +2,9 @@ import re
 from dataclasses import dataclass
 from typing import Optional
 from sqlalchemy.ext.asyncio import AsyncSession
-from sqlalchemy import select
+from sqlalchemy import select, func, and_
 from app.db.models.chunk import Chunk as ChunkModel
-from app.db.models.document import Document, DocumentType
+from app.db.models.document import Document, DocumentType, DocumentStatus
 from app.utils.logger import logger
 
 
@@ -178,6 +178,47 @@ class MetadataFilter:
 
         return years[0], years[-1]
 
+    def _latest_completed_ids_stmt(
+        self,
+        doc_type: DocumentType,
+        visa_type: Optional[str] = None,
+    ):
+        """
+        Select IDs for the latest COMPLETED version of each filename.
+
+        Re-ingest leaves prior versions as COMPLETED and keeps their Milvus
+        vectors. Hybrid search filters by these Postgres IDs, so returning
+        every version lets superseded policy text compete with current law.
+        """
+        latest_versions = (
+            select(
+                Document.filename.label("filename"),
+                func.max(Document.version).label("max_version"),
+            )
+            .where(Document.doc_type == doc_type)
+            .where(Document.status == DocumentStatus.COMPLETED)
+            .group_by(Document.filename)
+            .subquery()
+        )
+
+        query = (
+            select(Document.id)
+            .join(
+                latest_versions,
+                and_(
+                    Document.filename == latest_versions.c.filename,
+                    Document.version == latest_versions.c.max_version,
+                ),
+            )
+            .where(Document.doc_type == doc_type)
+            .where(Document.status == DocumentStatus.COMPLETED)
+        )
+
+        if visa_type:
+            query = query.where(Document.visa_type == visa_type)
+
+        return query
+
     async def _fetch_document_ids(
         self,
         db: AsyncSession,
@@ -186,22 +227,18 @@ class MetadataFilter:
         year_min: Optional[int] = None,
         year_max: Optional[int] = None,
     ) -> list[str]:
-        """Fetch document IDs from PostgreSQL matching the filters."""
-        query = select(Document.id).where(Document.doc_type == doc_type)
-
-        if visa_type:
-            query = query.where(Document.visa_type == visa_type)
-
-        result = await db.execute(query)
-        doc_ids = [str(row[0]) for row in result.fetchall()]
-        return doc_ids
+        """Fetch latest COMPLETED document IDs matching the filters."""
+        # year_min/year_max reserved for case metadata join (not on Document)
+        _ = (year_min, year_max)
+        result = await db.execute(
+            self._latest_completed_ids_stmt(doc_type, visa_type=visa_type)
+        )
+        return [str(row[0]) for row in result.fetchall()]
 
     async def _fetch_all_document_ids(
         self,
         db: AsyncSession,
         doc_type: DocumentType,
     ) -> list[str]:
-        result = await db.execute(
-            select(Document.id).where(Document.doc_type == doc_type)
-        )
+        result = await db.execute(self._latest_completed_ids_stmt(doc_type))
         return [str(row[0]) for row in result.fetchall()]
