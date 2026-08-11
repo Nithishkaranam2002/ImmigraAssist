@@ -129,7 +129,11 @@ class ChangeDetector:
             db.add(record)
         else:
             old_hash = record.content_hash
-            record.content_hash = new_hash
+            # Failure paths pass new_hash="". Overwriting a good hash with empty
+            # makes the next successful scrape look CHANGED even when the page
+            # body is identical, which re-ingests duplicate document versions.
+            if new_hash:
+                record.content_hash = new_hash
             record.source_type = source_type
             record.doc_type = doc_type
             record.title = title
@@ -137,7 +141,7 @@ class ChangeDetector:
             record.error_message = error_message
             record.last_scraped_at = now
             record.scrape_count = (record.scrape_count or 0) + 1
-            if old_hash != new_hash:
+            if new_hash and old_hash != new_hash:
                 record.last_changed_at = now
 
         await db.commit()

@@ -19,7 +19,7 @@ async def search_cases(
     Search CourtListener for relevant immigration cases.
     Returns real case citations with links.
     """
-    logger.info(f"Case search: '{q}' by {current_user.email}")
+    logger.info(f"Case search by {current_user.email} (len={len(q)})")
 
     scraper = CourtListenerScraper()
     try:

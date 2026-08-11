@@ -40,7 +40,7 @@ class HybridRetriever:
         filter_context: FilterContext,
     ) -> tuple[list[RetrievedChunk], list[RetrievedChunk]]:
 
-        logger.info(f"Hybrid retrieval for query: '{query[:80]}...'")
+        logger.info(f"Hybrid retrieval for query (len={len(query)})")
 
         query_embedding = await self.embedder.aembed_query(query)
 
