@@ -74,7 +74,63 @@ def test_ac21_query_expands_with_subtopic_context():
     )
     expanded = expand_query_for_retrieval("What evidence is required for AC21?", session)
     assert "AC21" in expanded
+    assert "H-4 EAD" in expanded
     assert "180 day extension" not in expanded
+
+
+def test_i140_subtopic_expands_in_h4_session():
+    session = SessionHistory(
+        text="Q: H4 EAD?\nA: ...",
+        last_query="What are H4 EAD requirements?",
+        last_visa_type="h4_ead",
+        turn_count=1,
+    )
+    expanded = expand_query_for_retrieval("What about I-140 evidence?", session)
+    assert "H-4 EAD" in expanded
+    assert "I-140" in expanded
+
+
+def test_i140_follow_up_does_not_poison_asylum_session():
+    """Asylum → I-140 must not inject H-4 EAD into the retrieval query.
+
+    chat._prepare_query_context builds MetadataFilter from the expanded
+    retrieval query; H-4 EAD wording would force the wrong visa corpus.
+    """
+    session = SessionHistory(
+        text="Q: asylum?\nA: ...",
+        last_query="What are asylum eligibility requirements?",
+        last_visa_type="asylum",
+        turn_count=1,
+    )
+    expanded = expand_query_for_retrieval("What about Form I-140?", session)
+    assert "H-4 EAD" not in expanded
+    assert "H-1B AC21" not in expanded
+    # Still inherits prior topic for retrieval, without visa-poisoning prefixes.
+    assert "asylum eligibility" in expanded
+    assert "I-140" in expanded
+
+
+def test_i140_follow_up_does_not_poison_eb2_session():
+    session = SessionHistory(
+        text="Q: EB-2?\nA: ...",
+        last_query="What are EB-2 requirements?",
+        last_visa_type="eb2",
+        turn_count=1,
+    )
+    expanded = expand_query_for_retrieval("What about I-140 evidence?", session)
+    assert "H-4 EAD" not in expanded
+    assert "EB-2 requirements" in expanded
+
+
+def test_portability_does_not_poison_unrelated_session():
+    session = SessionHistory(
+        text="Q: green card?\nA: ...",
+        last_query="How does adjustment of status work?",
+        last_visa_type="green_card",
+        turn_count=1,
+    )
+    expanded = expand_query_for_retrieval("What is portability?", session)
+    assert "H-1B AC21 portability" not in expanded
 
 
 def test_new_topic_skips_retrieval_expansion():

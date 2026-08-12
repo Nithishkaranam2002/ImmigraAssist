@@ -203,6 +203,9 @@ Only add renewal-specific items (prior EAD, I-797C receipt) when the user asks a
         h4_context = visa_type in ("h4", "h4_ead") or (
             prior_query and re.search(r"\bh[-\s]?4\b", prior_query, re.I)
         )
+        h1b_context = visa_type == "h1b" or (
+            prior_query and re.search(r"\bh[-\s]?1b\b", prior_query, re.I)
+        )
         if is_forms_follow_up:
             hint = (
                 "Forms follow-up — list ONLY USCIS forms and supporting documents for the "
@@ -215,14 +218,18 @@ Only add renewal-specific items (prior EAD, I-797C receipt) when the user asks a
                 )
             hints.append(hint)
 
-        if re.search(r"\bac21\b", q, re.I):
+        if re.search(r"\bac21\b", q, re.I) and (h4_context or h1b_context):
             hints.append(
                 "AC21 evidence query — explain what documentation proves the H-1B principal "
                 "meets AC21 §106(a) or §106(b) eligibility for H-4 EAD (per retrieved sources). "
                 "Do NOT repeat the Form I-765 filing checklist unless the user asks for forms."
             )
 
-        if re.search(r"\bi[-\s]?140\b", q, re.I) and re.search(r"\bevidence\b", q, re.I):
+        if (
+            re.search(r"\bi[-\s]?140\b", q, re.I)
+            and re.search(r"\bevidence\b", q, re.I)
+            and h4_context
+        ):
             hints.append(
                 "I-140 evidence query — explain what approval notice or petition documentation "
                 "demonstrates the principal's approved Form I-140 for H-4 EAD purposes."

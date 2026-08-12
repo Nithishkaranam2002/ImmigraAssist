@@ -93,11 +93,20 @@ EXPLICIT_SUBTOPIC_RE = re.compile(
     re.IGNORECASE,
 )
 
-SUBTOPIC_RETRIEVAL_CONTEXT: list[tuple[re.Pattern, str]] = [
+# These expansions inject H-1B / H-4 EAD wording. Only apply when the active
+# conversation (or the current query) is already in that visa family — otherwise
+# build_filter_context(retrieval_query) will mis-detect visa_type and pull the
+# wrong policy corpus (e.g. asylum → "What about I-140?" → H-4 EAD docs).
+H4_H1B_SUBTOPIC_RETRIEVAL_CONTEXT: list[tuple[re.Pattern, str]] = [
     (re.compile(r"\bac21\b", re.I), "H-1B AC21 section 106 H-4 EAD eligibility evidence"),
     (re.compile(r"\bi[-\s]?140\b", re.I), "H-4 EAD approved Form I-140 immigrant petition evidence"),
     (re.compile(r"\bportability\b", re.I), "H-1B AC21 portability evidence"),
 ]
+
+# Backward-compatible alias for imports/tests that referenced the old name.
+SUBTOPIC_RETRIEVAL_CONTEXT = H4_H1B_SUBTOPIC_RETRIEVAL_CONTEXT
+
+H4_H1B_FAMILIES = frozenset({"h1b", "h4"})
 
 
 def is_forms_follow_up_query(query: str) -> bool:
@@ -108,6 +117,14 @@ def is_forms_follow_up_query(query: str) -> bool:
 def has_explicit_subtopic(query: str) -> bool:
     """True when the user names a specific legal concept to research."""
     return bool(EXPLICIT_SUBTOPIC_RE.search(query))
+
+
+def _in_h4_h1b_family(query: str, session: SessionHistory) -> bool:
+    """True when query or session topic is H-1B / H-4 (including H-4 EAD)."""
+    for visa in (detect_visa_in_query(query), session.last_visa_type):
+        if visa and VISA_FAMILY.get(visa, visa) in H4_H1B_FAMILIES:
+            return True
+    return False
 
 
 def is_follow_up_query(query: str, *, has_prior_turns: bool) -> bool:
@@ -163,9 +180,10 @@ def expand_query_for_retrieval(
     if new_topic:
         return query
 
-    for pattern, context in SUBTOPIC_RETRIEVAL_CONTEXT:
-        if pattern.search(query):
-            return f"{context} {query}"
+    if _in_h4_h1b_family(query, session):
+        for pattern, context in H4_H1B_SUBTOPIC_RETRIEVAL_CONTEXT:
+            if pattern.search(query):
+                return f"{context} {query}"
 
     if not session.has_prior_turns or not session.last_query:
         return query
