@@ -107,6 +107,13 @@ class QueryResponse(BaseModel):
     matter_id: Optional[str] = None
 
 
+def _prompt_visa_type(filter_context) -> str | None:
+    """Label shown to the model. Compare queries list every named visa."""
+    if len(filter_context.visa_types) > 1:
+        return ", ".join(filter_context.visa_types)
+    return filter_context.visa_type
+
+
 def _court_cases_response(court_cases) -> list[CourtCase]:
     return [
         CourtCase(
@@ -162,6 +169,7 @@ async def _prepare_query_context(
     if (
         not new_topic
         and not filter_context.visa_type
+        and not filter_context.visa_types
         and session.last_visa_type
     ):
         filter_context = await metadata_filter.apply_visa_override(
@@ -364,7 +372,11 @@ async def _run_pipeline(
             matter_context, matter_visa = await _load_matter_for_chat(
                 db, matter_id, current_user.id
             )
-            if matter_visa and not filter_context.visa_type:
+            if (
+                matter_visa
+                and not filter_context.visa_type
+                and not filter_context.visa_types
+            ):
                 filter_context = await metadata_filter.apply_visa_override(
                     db, filter_context, matter_visa
                 )
@@ -412,7 +424,7 @@ async def _run_pipeline(
     prompt = prompt_builder.build(
         query=clean_query,
         context=context,
-        visa_type=filter_context.visa_type,
+        visa_type=_prompt_visa_type(filter_context),
         query_mode=query_mode,
         is_follow_up=is_follow_up,
         is_forms_follow_up=is_forms_follow_up,
@@ -482,8 +494,11 @@ async def _finalize_response(
     )
 
     form_list = list(parsed.related_forms or [])
-    if filter_context.visa_type:
-        for f in get_forms_for_visa(filter_context.visa_type):
+    visas_for_forms = filter_context.visa_types or (
+        [filter_context.visa_type] if filter_context.visa_type else []
+    )
+    for visa in visas_for_forms:
+        for f in get_forms_for_visa(visa):
             entry = f"{f['form']} — {f['name']}"
             if entry not in form_list:
                 form_list.append(entry)
@@ -496,7 +511,7 @@ async def _finalize_response(
         answer=sanitized.answer,
         retrieved_law_chunks=json.dumps([c.chunk_id for c in law_chunks]),
         retrieved_case_chunks=json.dumps([c.chunk_id for c in case_chunks]),
-        visa_type_detected=filter_context.visa_type,
+        visa_type_detected=_prompt_visa_type(filter_context),
         response_time_ms=response_time_ms,
         token_count=gpt_response.total_tokens,
     )
@@ -529,7 +544,7 @@ async def _finalize_response(
         "related_forms": form_list,
         "audit_log_id": str(audit_log.id),
         "response_time_ms": response_time_ms,
-        "visa_type_detected": filter_context.visa_type,
+        "visa_type_detected": _prompt_visa_type(filter_context),
         "confidence_score": confidence.score,
         "confidence_level": confidence.level,
         "confidence_label": confidence.label,
@@ -555,7 +570,11 @@ async def _stream_pipeline(
                 matter_context, matter_visa = await _load_matter_for_chat(
                     db, body.matter_id, current_user.id
                 )
-                if matter_visa and not filter_context.visa_type:
+                if (
+                    matter_visa
+                    and not filter_context.visa_type
+                    and not filter_context.visa_types
+                ):
                     filter_context = await metadata_filter.apply_visa_override(
                         db, filter_context, matter_visa
                     )
@@ -600,7 +619,7 @@ async def _stream_pipeline(
         prompt = prompt_builder.build(
             query=clean_query,
             context=context,
-            visa_type=filter_context.visa_type,
+            visa_type=_prompt_visa_type(filter_context),
             query_mode=query_mode,
             is_follow_up=is_follow_up,
             is_forms_follow_up=is_forms_follow_up,
