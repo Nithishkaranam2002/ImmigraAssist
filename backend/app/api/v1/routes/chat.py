@@ -157,7 +157,10 @@ async def _prepare_query_context(
     retrieval_query = expand_query_for_retrieval(
         clean_query, session, new_topic=new_topic
     )
-    filter_context = await metadata_filter.build_filter_context(db=db, query=retrieval_query)
+    # Detect visa from the user's question, not the expanded retrieval string.
+    # Prepending prior-turn text would otherwise keep the old visa filter
+    # (e.g. H-4 EAD) when the user starts a new topic such as naturalization.
+    filter_context = await metadata_filter.build_filter_context(db=db, query=clean_query)
 
     if (
         not new_topic

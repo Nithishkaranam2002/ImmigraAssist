@@ -93,6 +93,19 @@ EXPLICIT_SUBTOPIC_RE = re.compile(
     re.IGNORECASE,
 )
 
+# Legal topics that are a different research thread from a typical visa Q&A,
+# even when the user does not name a visa code.
+DISTINCT_TOPIC_RE = re.compile(
+    r"\b(?:"
+    r"naturalization|citizenship|n[-\s]?400|"
+    r"deportation|removal\s+proceeding|cancellation\s+of\s+removal|"
+    r"inadmissib(?:le|ility)|tps|daca|vawa|"
+    r"diversity\s+visa|dv[-\s]?lottery|"
+    r"perm|labor\s+certification"
+    r")\b",
+    re.IGNORECASE,
+)
+
 SUBTOPIC_RETRIEVAL_CONTEXT: list[tuple[re.Pattern, str]] = [
     (re.compile(r"\bac21\b", re.I), "H-1B AC21 section 106 H-4 EAD eligibility evidence"),
     (re.compile(r"\bi[-\s]?140\b", re.I), "H-4 EAD approved Form I-140 immigrant petition evidence"),
@@ -147,6 +160,11 @@ def is_new_topic_query(query: str, session: SessionHistory) -> bool:
     if detected and session.last_visa_type and _visa_families_differ(detected, session.last_visa_type):
         return True
 
+    if DISTINCT_TOPIC_RE.search(q) and not (
+        session.last_query and DISTINCT_TOPIC_RE.search(session.last_query)
+    ):
+        return True
+
     if len(q.split()) > 12 and not FOLLOW_UP_RE.search(q) and detected:
         return True
 
@@ -171,9 +189,6 @@ def expand_query_for_retrieval(
         return query
 
     if is_follow_up_query(query, has_prior_turns=True):
-        return f"{session.last_query} {query}"
-
-    if not detect_visa_in_query(query):
         return f"{session.last_query} {query}"
 
     return query
