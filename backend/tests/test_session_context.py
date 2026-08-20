@@ -86,3 +86,56 @@ def test_new_topic_skips_retrieval_expansion():
     )
     query = "What is the H-1B cap and how does the lottery work?"
     assert expand_query_for_retrieval(query, session, new_topic=True) == query
+
+
+def test_naturalization_after_h4_is_new_topic():
+    session = SessionHistory(
+        text="Q: H4 EAD?\nA: ...",
+        last_query="What are the requirements for H4 EAD eligibility?",
+        last_visa_type="h4",
+        turn_count=1,
+    )
+    query = "What is the N-400 naturalization process?"
+    assert is_new_topic_query(query, session)
+    expanded = expand_query_for_retrieval(query, session, new_topic=True)
+    assert expanded == query
+    assert "H4 EAD" not in expanded
+
+
+def test_standalone_visaless_query_does_not_inherit_prior_visa_text():
+    session = SessionHistory(
+        text="Q: H4 EAD?\nA: ...",
+        last_query="What are the requirements for H4 EAD eligibility?",
+        last_visa_type="h4",
+        turn_count=1,
+    )
+    query = "Describe the naturalization physical presence and continuous residence requirements."
+    assert is_new_topic_query(query, session)
+    expanded = expand_query_for_retrieval(query, session, new_topic=True)
+    assert expanded == query
+    assert "H4 EAD" not in expanded
+
+
+def test_perm_after_h1b_is_new_topic():
+    session = SessionHistory(
+        text="Q: H-1B?\nA: ...",
+        last_query="What are H-1B specialty occupation requirements?",
+        last_visa_type="h1b",
+        turn_count=1,
+    )
+    query = "Describe the PERM labor certification process."
+    assert is_new_topic_query(query, session)
+
+
+def test_visaless_non_followup_does_not_prepend_prior_query():
+    session = SessionHistory(
+        text="Q: H-1B?\nA: ...",
+        last_query="What are H-1B specialty occupation requirements?",
+        last_visa_type="h1b",
+        turn_count=1,
+    )
+    query = "Outline specialty occupation degree equivalency evaluations for programmers."
+    assert not is_follow_up_query(query, has_prior_turns=True)
+    expanded = expand_query_for_retrieval(query, session, new_topic=False)
+    assert "H-1B specialty occupation requirements" not in expanded
+    assert expanded == query
