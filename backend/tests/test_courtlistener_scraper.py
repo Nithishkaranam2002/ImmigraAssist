@@ -21,6 +21,19 @@ def test_h4_ead_detected_from_ead_in_query(scraper):
     assert "EAD" in terms or "employment" in terms
 
 
+def test_dv_lottery_search_does_not_inject_h1b_cap(scraper):
+    terms = scraper._build_search_query("What is the DV lottery process?", "green_card")
+    assert "H-1B cap" not in terms
+
+
+def test_h1b_lottery_search_still_includes_h1b_cap(scraper):
+    terms = scraper._build_search_query(
+        "What is the H-1B cap and how does the lottery work?",
+        "h1b",
+    )
+    assert "H-1B" in terms
+
+
 def test_relevance_penalizes_asylum_for_h1b(scraper):
     case = CourtCase(
         case_name="Matter of Negusie",
