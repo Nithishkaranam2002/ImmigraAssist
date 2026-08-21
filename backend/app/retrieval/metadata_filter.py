@@ -142,7 +142,16 @@ class MetadataFilter:
     def _infer_visa_from_topic(self, query: str) -> Optional[str]:
         """Map topic keywords to visa when explicit code is omitted."""
         q = query.lower()
-        if re.search(r"\b(cap|lottery|premium\s+processing|lca)\b", q):
+        # DV / diversity visa lottery is not the H-1B cap lottery.
+        if re.search(
+            r"\b(diversity\s+visa|dv[- ]?(lottery|visa|program)|"
+            r"green\s*card\s+lottery)\b",
+            q,
+        ):
+            return "green_card"
+        # LCA is H-1B-specific. Cap / lottery / premium processing also apply
+        # to H-2B, E-3, DV, and several I-129/I-140 categories — do not force H-1B.
+        if re.search(r"\blca\b", q):
             return "h1b"
         if re.search(r"\b(opt\b|stem\s+opt|curricular\s+practical)", q):
             return "f1"

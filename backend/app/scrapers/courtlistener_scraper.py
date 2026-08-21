@@ -267,8 +267,17 @@ class CourtListenerScraper:
             terms.extend(VISA_ANCHORS[visa_type])
 
         for pattern, phrases in TOPIC_PHRASES:
-            if pattern.search(query):
-                terms.extend(phrases)
+            if not pattern.search(query):
+                continue
+            # "H-1B cap" is injected for any cap/lottery/registration hit.
+            # Skip it unless this query is actually about H-1B (DV lottery,
+            # H-2B cap, F-1 SEVIS registration otherwise retrieve H-1B cases).
+            if phrases == ["H-1B cap", "lottery", "registration"]:
+                if visa_type and visa_type != "h1b":
+                    continue
+                if not visa_type and not re.search(r"\bh[-\s]?1b\b", query, re.I):
+                    continue
+            terms.extend(phrases)
 
         normalized = re.sub(r"[^\w\s-]", " ", query.lower())
         for word in normalized.split():
