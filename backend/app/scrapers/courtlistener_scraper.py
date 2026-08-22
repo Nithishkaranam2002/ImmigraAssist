@@ -54,14 +54,19 @@ TOPIC_PHRASES: list[tuple[re.Pattern, list[str]]] = [
     (re.compile(r"\bnaturalization|citizenship|n-400", re.I), ["naturalization", "citizenship"]),
     (re.compile(r"\bdeport|removal|cancellation", re.I), ["deportation", "removal", "cancellation"]),
     (re.compile(r"\bcompare|versus|vs\.?\b", re.I), ["comparison", "visa category"]),
-    (re.compile(r"\b180[- ]day|extension", re.I), ["180-day extension", "status extension"]),
+    # 180-day automatic EAD extension is not a generic I-129 / status extension.
+    (
+        re.compile(r"\b180[- ]day\b|automatic\s+extension", re.I),
+        ["180-day extension", "automatic extension"],
+    ),
     (re.compile(r"\bconsular|visa\s+stamp|abroad", re.I), ["consular processing", "visa stamp"]),
     (
         re.compile(r"\b(opt\b|stem\s+opt|cpt\b|practical\s+training|sevis|i-983)", re.I),
         ["STEM OPT", "OPT extension", "F-1 student", "Form I-983"],
     ),
+    # STEM OPT's 24-month period is F-1 specific — not every "how long" / "months" question.
     (
-        re.compile(r"\bhow\s+long|duration|months?\b", re.I),
+        re.compile(r"\b(stem\s+opt|24[- ]month\s+(?:stem\s+)?opt)\b", re.I),
         ["24 month", "STEM OPT duration", "OPT period"],
     ),
 ]

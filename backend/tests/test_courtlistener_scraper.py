@@ -91,6 +91,47 @@ def test_stem_opt_query_drops_unrelated_cases(scraper):
     assert result == []
 
 
+def test_h1b_extension_query_does_not_inject_ead_or_stem_opt(scraper):
+    """H-1B I-129 extensions are not 180-day EAD or STEM OPT duration questions."""
+    terms = scraper._build_search_query(
+        "How long can an H-1B visa be extended?",
+        "h1b",
+    ).lower()
+    assert "180-day" not in terms
+    assert "stem opt" not in terms
+    assert "opt period" not in terms
+    assert "24 month" not in terms
+    assert "h-1b" in terms
+
+
+def test_l1_duration_query_does_not_inject_stem_opt(scraper):
+    terms = scraper._build_search_query(
+        "How long can L-1A status last and what is the maximum duration?",
+        "l1",
+    ).lower()
+    assert "stem opt" not in terms
+    assert "opt period" not in terms
+    assert "24 month" not in terms
+    assert "l-1" in terms
+
+
+def test_automatic_ead_extension_still_searches_180_day(scraper):
+    terms = scraper._build_search_query(
+        "Does the 180-day automatic extension apply to an EAD?",
+        "h4_ead",
+    ).lower()
+    assert "180-day" in terms
+    assert "automatic" in terms
+
+
+def test_stem_opt_duration_query_still_includes_opt_terms(scraper):
+    terms = scraper._build_search_query(
+        "How long is the STEM OPT extension?",
+        "f1",
+    ).lower()
+    assert "stem opt" in terms or "optional practical training" in terms
+
+
 def test_rank_and_filter_drops_irrelevant(scraper):
     good = CourtCase(
         case_name="H-4 EAD employment authorization",
