@@ -67,6 +67,51 @@ def test_relevance_boosts_matching_h4_ead_case(scraper):
     assert score >= 0.22
 
 
+def test_f1_cpt_query_does_not_search_stem_opt_or_i983(scraper):
+    """CPT is school-authorized on the I-20 — not STEM OPT / Form I-983."""
+    terms = scraper._build_search_query(
+        "What are the requirements for F-1 CPT?",
+        "f1",
+    ).lower()
+    assert "stem opt" not in terms
+    assert "i-983" not in terms
+    assert "i983" not in terms
+    assert "cpt" in terms or "curricular" in terms
+    assert "f-1" in terms or "f1" in terms
+
+
+def test_curricular_practical_training_query_does_not_search_stem_opt(scraper):
+    terms = scraper._build_search_query(
+        "What is curricular practical training for students?",
+        "f1",
+    ).lower()
+    assert "stem opt" not in terms
+    assert "i-983" not in terms
+    assert "curricular" in terms or "cpt" in terms
+
+
+def test_cpt_duration_query_does_not_inject_stem_opt(scraper):
+    """Generic 'how long' topic phrases must not turn CPT into a 24-month STEM OPT search."""
+    terms = scraper._build_search_query(
+        "How long can an F-1 student work on CPT?",
+        "f1",
+    ).lower()
+    assert "stem opt" not in terms
+    assert "24 month" not in terms
+    assert "i-983" not in terms
+    assert "opt period" not in terms
+    assert "cpt" in terms or "curricular" in terms
+
+
+def test_stem_opt_query_still_uses_stem_opt_search(scraper):
+    terms = scraper._build_search_query(
+        "How long is the STEM OPT extension?",
+        "f1",
+    ).lower()
+    assert "stem opt" in terms
+    assert "i-983" in terms or "optional practical training" in terms
+
+
 def test_stem_opt_query_drops_unrelated_cases(scraper):
     unrelated = CourtCase(
         case_name="Students For Fair Admissions Inc v. President",

@@ -41,7 +41,10 @@ VISA_ANCHORS = {
     "eb2": ["EB-2", "advanced degree", "PERM"],
     "asylum": ["asylum", "withholding of removal", "persecution"],
     "green_card": ["adjustment of status", "I-485", "lawful permanent resident"],
-    "f1": ["F-1", "student", "OPT", "STEM OPT", "practical training"],
+    # Do not bake STEM OPT / I-983 into every F-1 search — CPT and
+    # regular 12-month OPT are different programs. Topic phrases add
+    # those terms only when the question is actually about them.
+    "f1": ["F-1", "student"],
 }
 
 TOPIC_PHRASES: list[tuple[re.Pattern, list[str]]] = [
@@ -57,8 +60,16 @@ TOPIC_PHRASES: list[tuple[re.Pattern, list[str]]] = [
     (re.compile(r"\b180[- ]day|extension", re.I), ["180-day extension", "status extension"]),
     (re.compile(r"\bconsular|visa\s+stamp|abroad", re.I), ["consular processing", "visa stamp"]),
     (
-        re.compile(r"\b(opt\b|stem\s+opt|cpt\b|practical\s+training|sevis|i-983)", re.I),
+        re.compile(r"\b(stem\s+opt|i-983)\b", re.I),
         ["STEM OPT", "OPT extension", "F-1 student", "Form I-983"],
+    ),
+    (
+        re.compile(r"\b(cpt\b|curricular\s+practical)\b", re.I),
+        ["CPT", "curricular practical training", "F-1 student"],
+    ),
+    (
+        re.compile(r"\bopt\b|optional\s+practical", re.I),
+        ["OPT", "optional practical training", "F-1 student"],
     ),
     (
         re.compile(r"\bhow\s+long|duration|months?\b", re.I),
@@ -187,19 +198,26 @@ class CourtListenerScraper:
 
         ranked = self._rank_and_filter(raw_cases, query, visa_type, max_results)
 
-        # Targeted second pass for F-1/OPT when initial results are weak or empty
-        if visa_type == "f1" and re.search(
-            r"\b(opt|stem\s+opt|cpt|practical\s+training)\b", query, re.I
+        # Targeted second pass for STEM OPT / regular OPT — never for CPT.
+        # CPT is school-authorized on the I-20 and has no I-983 / 24-month STEM period.
+        is_cpt = bool(re.search(r"\b(cpt\b|curricular\s+practical)\b", query, re.I))
+        if (
+            visa_type == "f1"
+            and not is_cpt
+            and re.search(r"\b(opt|stem\s+opt|practical\s+training)\b", query, re.I)
+            and len(ranked) < max_results
         ):
-            if len(ranked) < max_results:
+            if re.search(r"\b(stem\s+opt|i-983)\b", query, re.I):
                 opt_query = '"STEM OPT" "optional practical training" F-1'
-                extra = await self._fetch(opt_query, fetch_n, court="ca9 ca2 ca4 cadc bia")
-                seen = {c.case_id for c in ranked}
-                for c in extra:
-                    if c.case_id not in seen:
-                        raw_cases.append(c)
-                        seen.add(c.case_id)
-                ranked = self._rank_and_filter(raw_cases, query, visa_type, max_results)
+            else:
+                opt_query = '"optional practical training" F-1 OPT'
+            extra = await self._fetch(opt_query, fetch_n, court="ca9 ca2 ca4 cadc bia")
+            seen = {c.case_id for c in ranked}
+            for c in extra:
+                if c.case_id not in seen:
+                    raw_cases.append(c)
+                    seen.add(c.case_id)
+            ranked = self._rank_and_filter(raw_cases, query, visa_type, max_results)
 
         logger.info(
             f"CourtListener kept {len(ranked)}/{len(raw_cases)} cases after relevance filter"
@@ -256,9 +274,11 @@ class CourtListenerScraper:
 
     def _build_search_query(self, query: str, visa_type: Optional[str]) -> str:
         """Combine visa anchors with topic terms extracted from the user's question."""
+        # Hardcoded STEM OPT string is only valid for STEM OPT / I-983 questions.
+        # CPT and generic "practical training" must not be rewritten to I-983.
         if visa_type == "f1" and re.search(
-            r"\b(opt|stem\s+opt|cpt|practical\s+training)\b", query, re.I
-        ):
+            r"\b(stem\s+opt|i-983)\b", query, re.I
+        ) and not re.search(r"\b(cpt\b|curricular\s+practical)\b", query, re.I):
             return '"STEM OPT" "optional practical training" F-1 student I-983'
 
         terms: list[str] = []
@@ -269,6 +289,20 @@ class CourtListenerScraper:
         for pattern, phrases in TOPIC_PHRASES:
             if pattern.search(query):
                 terms.extend(phrases)
+
+        # CPT questions must not inherit STEM OPT / I-983 / 24-month phrases
+        # from generic "how long" / "OPT" topic matches.
+        if re.search(r"\b(cpt\b|curricular\s+practical)\b", query, re.I):
+            stem_only = {
+                "stem opt",
+                "form i-983",
+                "i-983",
+                "24 month",
+                "stem opt duration",
+                "opt period",
+                "opt extension",
+            }
+            terms = [t for t in terms if t.lower() not in stem_only]
 
         normalized = re.sub(r"[^\w\s-]", " ", query.lower())
         for word in normalized.split():

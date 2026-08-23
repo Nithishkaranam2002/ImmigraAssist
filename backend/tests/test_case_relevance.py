@@ -68,6 +68,33 @@ def test_stem_opt_accepts_washtech_litigation():
     assert score >= 0.28
 
 
+def test_cpt_query_rejects_stem_opt_i983_case():
+    """STEM OPT / I-983 litigation must not ground a CPT research memo."""
+    text = (
+        "The F-1 student sought a 24-month STEM OPT extension after "
+        "post-completion OPT under Form I-983 training plan."
+    )
+    score = score_case_text(
+        text,
+        "What are the requirements for F-1 CPT?",
+        "f1",
+    )
+    assert score < 0.28
+
+
+def test_cpt_query_accepts_cpt_case():
+    text = (
+        "The designated school official authorized curricular practical "
+        "training on the F-1 student's Form I-20 for an off-campus internship."
+    )
+    score = score_case_text(
+        text,
+        "What are the requirements for F-1 CPT?",
+        "f1",
+    )
+    assert score >= 0.28
+
+
 def test_filter_drops_irrelevant_chunks():
     good = _chunk(
         "F-1 STEM OPT extension granted for 24 months under SEVIS reporting rules."

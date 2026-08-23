@@ -51,6 +51,21 @@ TOPIC_MISMATCH: dict[str, list[str]] = {
 
 QUERY_TOPIC_MISMATCH: list[tuple[re.Pattern, list[str]]] = [
     (
+        # CPT is school-authorized practical training — not the 24-month STEM OPT / I-983 program.
+        re.compile(r"\b(cpt\b|curricular\s+practical)\b", re.I),
+        [
+            r"\bstem\s+opt\b",
+            r"\bi-983\b",
+            r"\b24[- ]month\b",
+            r"\bh-1b\b",
+            r"\bspecialty\s+occupation\b",
+            r"\bfair\s+admissions\b",
+            r"\bstudents?\s+for\s+fair\b",
+            r"\bnaturalization\b",
+            r"\basylum\b",
+        ],
+    ),
+    (
         re.compile(r"\b(opt|stem\s+opt|cpt|practical\s+training|sevis|i-983)\b", re.I),
         [
             r"\bh-1b\b", r"\bspecialty\s+occupation\b", r"\blca\b",
