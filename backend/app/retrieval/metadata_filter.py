@@ -146,8 +146,9 @@ class MetadataFilter:
             return "h1b"
         if re.search(r"\b(opt\b|stem\s+opt|curricular\s+practical)", q):
             return "f1"
-        if re.search(r"\bperm\b|labor\s+certification", q):
-            return "eb2"
+        # PERM is used by EB-2 and EB-3. "Labor certification" also names the
+        # H-2A/H-2B temporary labor certification (TLC) process. Forcing eb2
+        # hides those corpora. Explicit "EB-2 PERM" still matches VISA_PATTERNS.
         if re.search(r"\b(ead|work\s+auth|employment\s+authorization)\b", q):
             return "h4_ead"
         return None
