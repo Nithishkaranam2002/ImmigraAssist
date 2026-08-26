@@ -91,6 +91,30 @@ def test_stem_opt_query_drops_unrelated_cases(scraper):
     assert result == []
 
 
+def test_opt_for_consular_does_not_rewrite_to_stem_opt(scraper):
+    """English verb 'opt for' must not replace a consular-processing search with I-983."""
+    q = "Should I opt for consular processing or adjustment of status?"
+    terms = scraper._build_search_query(q, None).lower()
+    assert "consular" in terms
+    assert "i-983" not in terms
+    assert "stem opt" not in terms
+
+
+def test_opt_for_consular_with_f1_visa_keeps_consular_terms(scraper):
+    """Matter-selected F-1 must not trigger the STEM OPT early-return rewrite."""
+    q = "Should I opt for consular processing?"
+    terms = scraper._build_search_query(q, "f1").lower()
+    assert "consular" in terms
+    assert "i-983" not in terms
+    assert terms != '"stem opt" "optional practical training" f-1 student i-983'
+
+
+def test_genuine_opt_query_still_uses_stem_opt_search(scraper):
+    terms = scraper._build_search_query("What are the OPT work authorization rules?", "f1")
+    assert "STEM OPT" in terms
+    assert "I-983" in terms
+
+
 def test_rank_and_filter_drops_irrelevant(scraper):
     good = CourtCase(
         case_name="H-4 EAD employment authorization",
