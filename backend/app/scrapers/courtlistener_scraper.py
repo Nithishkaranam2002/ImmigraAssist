@@ -30,6 +30,19 @@ COURT_NAMES = {
     "txsd": "S.D. Texas",
 }
 
+def _is_f1_opt_program_query(query: str) -> bool:
+    """True for F-1 OPT/CPT as a visa program, not the English verb 'opt for/to/out'."""
+    return bool(
+        re.search(
+            r"\bstem\s+opt\b|\boptional\s+practical|\bcurricular\s+practical"
+            r"|\bcpt\b|\bpractical\s+training\b",
+            query,
+            re.I,
+        )
+        or re.search(r"\bopt\b(?!\s+(?:for|to|out)\b)", query, re.I)
+    )
+
+
 # Short anchors — combined with topic terms from the user's actual question
 VISA_ANCHORS = {
     "h1b": ["H-1B", "specialty occupation"],
@@ -57,7 +70,11 @@ TOPIC_PHRASES: list[tuple[re.Pattern, list[str]]] = [
     (re.compile(r"\b180[- ]day|extension", re.I), ["180-day extension", "status extension"]),
     (re.compile(r"\bconsular|visa\s+stamp|abroad", re.I), ["consular processing", "visa stamp"]),
     (
-        re.compile(r"\b(opt\b|stem\s+opt|cpt\b|practical\s+training|sevis|i-983)", re.I),
+        re.compile(
+            r"\bstem\s+opt\b|\bcpt\b|\bpractical\s+training\b|\bsevis\b|\bi-983\b"
+            r"|\bopt\b(?!\s+(?:for|to|out)\b)",
+            re.I,
+        ),
         ["STEM OPT", "OPT extension", "F-1 student", "Form I-983"],
     ),
     (
@@ -188,9 +205,7 @@ class CourtListenerScraper:
         ranked = self._rank_and_filter(raw_cases, query, visa_type, max_results)
 
         # Targeted second pass for F-1/OPT when initial results are weak or empty
-        if visa_type == "f1" and re.search(
-            r"\b(opt|stem\s+opt|cpt|practical\s+training)\b", query, re.I
-        ):
+        if visa_type == "f1" and _is_f1_opt_program_query(query):
             if len(ranked) < max_results:
                 opt_query = '"STEM OPT" "optional practical training" F-1'
                 extra = await self._fetch(opt_query, fetch_n, court="ca9 ca2 ca4 cadc bia")
@@ -256,9 +271,7 @@ class CourtListenerScraper:
 
     def _build_search_query(self, query: str, visa_type: Optional[str]) -> str:
         """Combine visa anchors with topic terms extracted from the user's question."""
-        if visa_type == "f1" and re.search(
-            r"\b(opt|stem\s+opt|cpt|practical\s+training)\b", query, re.I
-        ):
+        if visa_type == "f1" and _is_f1_opt_program_query(query):
             return '"STEM OPT" "optional practical training" F-1 student I-983'
 
         terms: list[str] = []
@@ -309,9 +322,7 @@ class CourtListenerScraper:
                 query_tokens.update(self._tokenize(anchor))
 
         min_score = MIN_RELEVANCE_SCORE
-        if visa_type == "f1" and re.search(
-            r"\b(opt|stem\s+opt|cpt|practical\s+training)\b", query, re.I
-        ):
+        if visa_type == "f1" and _is_f1_opt_program_query(query):
             min_score = 0.30
 
         scored: list[tuple[float, CourtCase]] = []

@@ -32,6 +32,15 @@ VISA_PATTERNS = {
 
 YEAR_PATTERN = re.compile(r"\b(19|20)\d{2}\b")
 
+# F-1 Optional/Curricular Practical Training — not the English verb "opt for/to/out".
+F1_OPT_PROGRAM_RE = re.compile(
+    r"\bstem\s+opt\b"
+    r"|\boptional\s+practical"
+    r"|\bcurricular\s+practical"
+    r"|\bopt\b(?!\s+(?:for|to|out)\b)",
+    re.IGNORECASE,
+)
+
 
 class MetadataFilter:
     """
@@ -144,7 +153,7 @@ class MetadataFilter:
         q = query.lower()
         if re.search(r"\b(cap|lottery|premium\s+processing|lca)\b", q):
             return "h1b"
-        if re.search(r"\b(opt\b|stem\s+opt|curricular\s+practical)", q):
+        if F1_OPT_PROGRAM_RE.search(q):
             return "f1"
         if re.search(r"\bperm\b|labor\s+certification", q):
             return "eb2"
