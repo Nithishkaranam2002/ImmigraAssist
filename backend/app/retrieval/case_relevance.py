@@ -51,9 +51,18 @@ TOPIC_MISMATCH: dict[str, list[str]] = {
 
 QUERY_TOPIC_MISMATCH: list[tuple[re.Pattern, list[str]]] = [
     (
-        re.compile(r"\b(opt|stem\s+opt|cpt|practical\s+training|sevis|i-983)\b", re.I),
+        re.compile(r"\b(opt|stem\s+opt|cpt|practical\s+training|i-983)\b", re.I),
         [
             r"\bh-1b\b", r"\bspecialty\s+occupation\b", r"\blca\b",
+            r"\bfair\s+admissions\b", r"\bstudents?\s+for\s+fair\b",
+            r"\bnaturalization\b", r"\basylum\b",
+        ],
+    ),
+    # SEVIS termination / transfer often mentions H-1B cap-gap; do not treat
+    # those cases as off-topic the way a STEM OPT duration query would.
+    (
+        re.compile(r"\bsevis\b", re.I),
+        [
             r"\bfair\s+admissions\b", r"\bstudents?\s+for\s+fair\b",
             r"\bnaturalization\b", r"\basylum\b",
         ],

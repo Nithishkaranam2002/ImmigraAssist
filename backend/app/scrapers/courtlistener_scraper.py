@@ -57,8 +57,13 @@ TOPIC_PHRASES: list[tuple[re.Pattern, list[str]]] = [
     (re.compile(r"\b180[- ]day|extension", re.I), ["180-day extension", "status extension"]),
     (re.compile(r"\bconsular|visa\s+stamp|abroad", re.I), ["consular processing", "visa stamp"]),
     (
-        re.compile(r"\b(opt\b|stem\s+opt|cpt\b|practical\s+training|sevis|i-983)", re.I),
+        re.compile(r"\b(opt\b|stem\s+opt|cpt\b|practical\s+training|i-983)", re.I),
         ["STEM OPT", "OPT extension", "F-1 student", "Form I-983"],
+    ),
+    # SEVIS is the F/M/J tracking system — not the STEM OPT I-983 training plan.
+    (
+        re.compile(r"\bsevis\b", re.I),
+        ["SEVIS", "student status", "I-20"],
     ),
     (
         re.compile(r"\bhow\s+long|duration|months?\b", re.I),
