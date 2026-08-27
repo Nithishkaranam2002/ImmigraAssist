@@ -68,6 +68,20 @@ def test_stem_opt_accepts_washtech_litigation():
     assert score >= 0.28
 
 
+def test_sevis_termination_does_not_zero_out_h1b_cap_gap_case():
+    """Cap-gap / H-1B mentions are common in SEVIS termination opinions."""
+    text = (
+        "The F-1 student's SEVIS record was terminated after the H-1B cap-gap "
+        "period ended and status was not maintained."
+    )
+    score = score_case_text(
+        text,
+        "What happens if a student's SEVIS record is terminated?",
+        None,
+    )
+    assert score >= 0.28
+
+
 def test_filter_drops_irrelevant_chunks():
     good = _chunk(
         "F-1 STEM OPT extension granted for 24 months under SEVIS reporting rules."

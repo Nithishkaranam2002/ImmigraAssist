@@ -91,6 +91,32 @@ def test_stem_opt_query_drops_unrelated_cases(scraper):
     assert result == []
 
 
+def test_sevis_termination_does_not_search_stem_opt_or_i983(scraper):
+    """SEVIS record termination is not a STEM OPT / Form I-983 question."""
+    q = "What happens if a student's SEVIS record is terminated?"
+    terms = scraper._build_search_query(q, None).lower()
+    assert "stem opt" not in terms
+    assert "i-983" not in terms
+    assert "sevis" in terms
+    assert "terminated" in terms or "termination" in terms or "status" in terms
+
+
+def test_sevis_transfer_keeps_i20_terms_not_opt_training_plan(scraper):
+    q = "How does a SEVIS transfer to a new school work?"
+    terms = scraper._build_search_query(q, None).lower()
+    assert "i-983" not in terms
+    assert "stem opt" not in terms
+    assert "sevis" in terms
+    assert "i-20" in terms or "student status" in terms
+
+
+def test_genuine_stem_opt_query_still_searches_i983(scraper):
+    q = "How long is the STEM OPT extension?"
+    terms = scraper._build_search_query(q, "f1").lower()
+    assert "stem opt" in terms
+    assert "i-983" in terms
+
+
 def test_rank_and_filter_drops_irrelevant(scraper):
     good = CourtCase(
         case_name="H-4 EAD employment authorization",
