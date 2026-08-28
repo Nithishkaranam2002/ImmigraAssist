@@ -200,10 +200,8 @@ async def _load_matter_for_chat(
         + "\n\nWhen the user says \"here\", \"this client\", \"her/him\", or similar, "
         "use these matter notes for context. Do not invent client facts not stated above."
     )
-    visa = matter.visa_type or None
-    if visa == "h4_ead":
-        visa = "h4"
-    return text, visa
+    # Keep h4_ead distinct from h4: I-765 (c)(26) vs I-539 dependent status.
+    return text, matter.visa_type or None
 
 
 def _conversation_flags(

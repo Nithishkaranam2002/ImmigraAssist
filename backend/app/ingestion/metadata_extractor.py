@@ -23,8 +23,8 @@ class MetadataExtractor:
 
     VISA_PATTERNS = {
         "h1b": re.compile(r"\bh[-\s]?1b\b", re.IGNORECASE),
-        "h4": re.compile(r"\bh[-\s]?4\b", re.IGNORECASE),
         "h4_ead": re.compile(r"\bh[-\s]?4\s*ead\b", re.IGNORECASE),
+        "h4": re.compile(r"\bh[-\s]?4\b", re.IGNORECASE),
         "l1": re.compile(r"\bl[-\s]?1[ab]?\b", re.IGNORECASE),
         "o1": re.compile(r"\bo[-\s]?1\b", re.IGNORECASE),
         "eb1": re.compile(r"\beb[-\s]?1\b", re.IGNORECASE),
@@ -64,7 +64,11 @@ class MetadataExtractor:
         )
 
     def _detect_visa(self, text: str) -> Optional[str]:
+        if self.VISA_PATTERNS["h4_ead"].search(text):
+            return "h4_ead"
         for visa_type, pattern in self.VISA_PATTERNS.items():
+            if visa_type == "h4_ead":
+                continue
             if pattern.search(text):
                 return visa_type
         return None
