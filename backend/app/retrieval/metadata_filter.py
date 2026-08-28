@@ -17,10 +17,11 @@ class FilterContext:
     case_document_ids: list[str]      # filtered case doc IDs
 
 
+# More-specific codes first: "H-4 EAD" also matches the H-4 pattern.
 VISA_PATTERNS = {
     "h1b": re.compile(r"\bh[-\s]?1b\b", re.IGNORECASE),
-    "h4": re.compile(r"\bh[-\s]?4\b", re.IGNORECASE),
     "h4_ead": re.compile(r"\bh[-\s]?4\s*ead\b", re.IGNORECASE),
+    "h4": re.compile(r"\bh[-\s]?4\b", re.IGNORECASE),
     "l1": re.compile(r"\bl[-\s]?1[ab]?\b", re.IGNORECASE),
     "o1": re.compile(r"\bo[-\s]?1\b", re.IGNORECASE),
     "eb1": re.compile(r"\beb[-\s]?1\b", re.IGNORECASE),
@@ -134,7 +135,12 @@ class MetadataFilter:
         )
 
     def _detect_visa_type(self, query: str) -> Optional[str]:
+        # H-4 EAD is a superset of the H-4 token; check it first.
+        if VISA_PATTERNS["h4_ead"].search(query):
+            return "h4_ead"
         for visa_type, pattern in VISA_PATTERNS.items():
+            if visa_type == "h4_ead":
+                continue
             if pattern.search(query):
                 return visa_type
         return None
@@ -148,7 +154,10 @@ class MetadataFilter:
             return "f1"
         if re.search(r"\bperm\b|labor\s+certification", q):
             return "eb2"
-        if re.search(r"\b(ead|work\s+auth|employment\s+authorization)\b", q):
+        # EAD / work authorization is shared by H-4 (c)(26), F-1 OPT, asylum,
+        # TPS, L-2, and AOS (c)(9). Do not force the H-4 EAD corpus.
+        # Explicit "H-4 EAD" is handled by _detect_visa_type.
+        if re.search(r"\(c\)\s*\(26\)", q):
             return "h4_ead"
         return None
 
