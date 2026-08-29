@@ -38,7 +38,7 @@ VISA_ANCHORS = {
     "l1": ["L-1", "intracompany transferee"],
     "o1": ["O-1", "extraordinary ability"],
     "eb1": ["EB-1", "priority worker"],
-    "eb2": ["EB-2", "advanced degree", "PERM"],
+    "eb2": ["EB-2"],
     "asylum": ["asylum", "withholding of removal", "persecution"],
     "green_card": ["adjustment of status", "I-485", "lawful permanent resident"],
     "f1": ["F-1", "student", "OPT", "STEM OPT", "practical training"],
@@ -96,6 +96,21 @@ TOPIC_MISMATCH = {
 }
 
 IMMIGRATION_VISA_TYPES = frozenset(VISA_ANCHORS.keys())
+
+
+def _eb2_subtopic_terms(query: str) -> list[str]:
+    """PERM is only one EB-2 path — NIW skips labor certification entirely."""
+    terms: list[str] = []
+    if re.search(r"\bniw\b|national\s+interest", query, re.I):
+        terms.extend(["national interest waiver", "Dhanasar"])
+    if re.search(r"\bperm\b|labor\s+certification", query, re.I):
+        terms.extend(["PERM", "labor certification"])
+    if re.search(r"exceptional\s+ability", query, re.I):
+        terms.append("exceptional ability")
+    if not terms:
+        terms.append("advanced degree")
+    return terms
+
 
 MIN_RELEVANCE_SCORE = 0.22
 FETCH_MULTIPLIER = 6
@@ -265,6 +280,8 @@ class CourtListenerScraper:
 
         if visa_type and visa_type in VISA_ANCHORS:
             terms.extend(VISA_ANCHORS[visa_type])
+        if visa_type == "eb2":
+            terms.extend(_eb2_subtopic_terms(query))
 
         for pattern, phrases in TOPIC_PHRASES:
             if pattern.search(query):

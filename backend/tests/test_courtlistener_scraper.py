@@ -1,6 +1,10 @@
 """Unit tests for CourtListener query building and relevance filtering."""
 import pytest
-from app.scrapers.courtlistener_scraper import CourtCase, CourtListenerScraper
+from app.scrapers.courtlistener_scraper import (
+    CourtCase,
+    CourtListenerScraper,
+    _eb2_subtopic_terms,
+)
 
 
 @pytest.fixture
@@ -128,3 +132,43 @@ def test_rank_and_filter_drops_irrelevant(scraper):
     )
     assert len(result) >= 1
     assert result[0].case_id == "a"
+
+
+def test_eb2_niw_subtopic_does_not_include_perm():
+    terms = _eb2_subtopic_terms(
+        "What evidence is required for an EB-2 national interest waiver?"
+    )
+    joined = " ".join(terms).lower()
+    assert "dhanasar" in joined or "national interest" in joined
+    assert "perm" not in joined
+    assert "labor certification" not in joined
+
+
+def test_eb2_perm_subtopic_keeps_labor_certification():
+    terms = _eb2_subtopic_terms(
+        "What is the EB-2 PERM labor certification process?"
+    )
+    joined = " ".join(terms).lower()
+    assert "perm" in joined
+    assert "dhanasar" not in joined
+
+
+def test_eb2_niw_search_keeps_dhanasar_and_drops_perm(scraper):
+    q = (
+        "What evidence is required for an EB-2 national interest waiver "
+        "and how does the Dhanasar three-prong test work?"
+    )
+    terms = scraper._build_search_query(q, "eb2")
+    lower = terms.lower()
+    assert "perm" not in lower
+    assert "dhanasar" in lower
+    assert "national interest" in lower or "niw" in lower
+    assert "EB-2" in terms or "eb-2" in lower
+
+
+def test_eb2_perm_search_still_includes_perm(scraper):
+    q = "What is the EB-2 PERM labor certification process?"
+    terms = scraper._build_search_query(q, "eb2")
+    lower = terms.lower()
+    assert "perm" in lower
+    assert "dhanasar" not in lower
