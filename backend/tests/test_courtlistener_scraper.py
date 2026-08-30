@@ -1,6 +1,10 @@
 """Unit tests for CourtListener query building and relevance filtering."""
 import pytest
-from app.scrapers.courtlistener_scraper import CourtCase, CourtListenerScraper
+from app.scrapers.courtlistener_scraper import (
+    CourtCase,
+    CourtListenerScraper,
+    _green_card_subtopic_terms,
+)
 
 
 @pytest.fixture
@@ -128,3 +132,54 @@ def test_rank_and_filter_drops_irrelevant(scraper):
     )
     assert len(result) >= 1
     assert result[0].case_id == "a"
+
+
+def test_green_card_consular_subtopic_does_not_include_i485():
+    terms = _green_card_subtopic_terms(
+        "What is the process for consular processing a family-based green card from abroad?"
+    )
+    joined = " ".join(terms).lower()
+    assert "ds-260" in joined or "nvc" in joined
+    assert "i-485" not in joined
+    assert "adjustment of status" not in joined
+
+
+def test_green_card_aos_subtopic_keeps_i485():
+    terms = _green_card_subtopic_terms(
+        "What evidence is required for I-485 adjustment of status?"
+    )
+    joined = " ".join(terms).lower()
+    assert "i-485" in joined
+    assert "adjustment of status" in joined
+    assert "ds-260" not in joined
+    assert "nvc" not in joined
+
+
+def test_green_card_consular_search_drops_i485_and_keeps_consular(scraper):
+    q = (
+        "What is the process for consular processing a family-based "
+        "green card from abroad?"
+    )
+    terms = scraper._build_search_query(q, "green_card")
+    lower = terms.lower()
+    assert "i-485" not in lower
+    assert "adjustment of status" not in lower
+    assert "consular" in lower or "ds-260" in lower or "nvc" in lower
+    assert "lawful permanent" in lower
+
+
+def test_green_card_aos_search_still_includes_i485(scraper):
+    q = "What evidence is required for I-485 adjustment of status for a family green card?"
+    terms = scraper._build_search_query(q, "green_card")
+    lower = terms.lower()
+    assert "i-485" in lower
+    assert "adjustment of status" in lower
+    assert "ds-260" not in lower
+
+
+def test_green_card_compare_search_keeps_both_paths(scraper):
+    q = "Explain adjustment of status vs consular processing for a green card"
+    terms = scraper._build_search_query(q, "green_card")
+    lower = terms.lower()
+    assert "i-485" in lower or "adjustment of status" in lower
+    assert "consular" in lower or "ds-260" in lower or "nvc" in lower

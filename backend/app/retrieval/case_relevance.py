@@ -22,7 +22,11 @@ VISA_TEXT_PATTERNS: dict[str, list[str]] = {
     "eb1": [r"\beb-?1\b", r"priority\s+worker"],
     "eb2": [r"\beb-?2\b", r"\bperm\b", r"labor\s+certification"],
     "asylum": [r"\basylum\b", r"withholding\s+of\s+removal", r"persecution"],
-    "green_card": [r"adjustment\s+of\s+status", r"i-485", r"lawful\s+permanent\s+resident"],
+    "green_card": [
+        r"adjustment\s+of\s+status", r"i-485", r"lawful\s+permanent\s+resident",
+        r"consular\s+processing", r"ds-260", r"national\s+visa\s+center",
+        r"immigrant\s+visa",
+    ],
     "f1": [
         r"\bf-?1\b", r"\bopt\b", r"stem\s+opt", r"\bcpt\b", r"\bsevis\b",
         r"i-983", r"practical\s+training", r"optional\s+practical",
@@ -57,6 +61,17 @@ QUERY_TOPIC_MISMATCH: list[tuple[re.Pattern, list[str]]] = [
             r"\bfair\s+admissions\b", r"\bstudents?\s+for\s+fair\b",
             r"\bnaturalization\b", r"\basylum\b",
         ],
+    ),
+    (
+        re.compile(
+            r"\b(consular\s+processing|ds-260|national\s+visa\s+center|\bnvc\b|visa\s+stamp)\b",
+            re.I,
+        ),
+        [r"adjustment\s+of\s+status", r"i[-\s]?485"],
+    ),
+    (
+        re.compile(r"\b(adjustment\s+of\s+status|i-485)\b", re.I),
+        [r"consular\s+processing", r"ds[-\s]?260", r"national\s+visa\s+center"],
     ),
 ]
 
@@ -107,10 +122,14 @@ def score_case_text(
                 score -= 0.5
 
     for query_pat, mismatch_patterns in QUERY_TOPIC_MISMATCH:
-        if query_pat.search(query):
-            for pattern in mismatch_patterns:
-                if re.search(pattern, haystack, re.I):
-                    score -= 0.55
+        if not query_pat.search(query):
+            continue
+        # Compare / dual-path questions name both topics — keep both corpora.
+        if any(re.search(p, query, re.I) for p in mismatch_patterns):
+            continue
+        for pattern in mismatch_patterns:
+            if re.search(pattern, haystack, re.I):
+                score -= 0.55
 
     # Hard gate: student/OPT questions must mention student-pathway terms in the case.
     if visa_type == "f1" and re.search(

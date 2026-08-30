@@ -80,3 +80,56 @@ def test_filter_drops_irrelevant_chunks():
     )
     assert len(result) == 1
     assert "STEM OPT" in result[0].text
+
+
+def test_consular_green_card_query_rejects_i485_aos_case():
+    text = (
+        "The applicant's Form I-485 adjustment of status was denied "
+        "for failure to maintain lawful status."
+    )
+    score = score_case_text(
+        text,
+        "What is the process for consular processing a family-based green card?",
+        "green_card",
+    )
+    assert score < 0.28
+
+
+def test_consular_green_card_query_accepts_nvc_case():
+    text = (
+        "The National Visa Center scheduled a consular processing interview "
+        "after the DS-260 immigrant visa application was filed."
+    )
+    score = score_case_text(
+        text,
+        "What is the process for consular processing a family-based green card?",
+        "green_card",
+    )
+    assert score >= 0.28
+
+
+def test_aos_green_card_query_still_accepts_i485_case():
+    text = (
+        "The applicant's Form I-485 adjustment of status was denied "
+        "for failure to maintain lawful status."
+    )
+    score = score_case_text(
+        text,
+        "What evidence is required for I-485 adjustment of status?",
+        "green_card",
+    )
+    assert score >= 0.28
+
+
+def test_compare_aos_vs_consular_does_not_zero_out_either_path():
+    aos_text = (
+        "The applicant's Form I-485 adjustment of status was denied "
+        "for failure to maintain lawful status."
+    )
+    consular_text = (
+        "The National Visa Center scheduled a consular processing interview "
+        "after the DS-260 immigrant visa application was filed."
+    )
+    q = "Explain adjustment of status vs consular processing for a green card"
+    assert score_case_text(aos_text, q, "green_card") >= 0.28
+    assert score_case_text(consular_text, q, "green_card") >= 0.28

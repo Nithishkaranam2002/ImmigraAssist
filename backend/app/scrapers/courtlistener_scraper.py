@@ -40,7 +40,8 @@ VISA_ANCHORS = {
     "eb1": ["EB-1", "priority worker"],
     "eb2": ["EB-2", "advanced degree", "PERM"],
     "asylum": ["asylum", "withholding of removal", "persecution"],
-    "green_card": ["adjustment of status", "I-485", "lawful permanent resident"],
+    # I-485 / AOS is only one immigrant path — consular processing uses DS-260.
+    "green_card": ["lawful permanent resident"],
     "f1": ["F-1", "student", "OPT", "STEM OPT", "practical training"],
 }
 
@@ -97,6 +98,24 @@ TOPIC_MISMATCH = {
 
 IMMIGRATION_VISA_TYPES = frozenset(VISA_ANCHORS.keys())
 
+
+def _green_card_subtopic_terms(query: str) -> list[str]:
+    """AOS (I-485) and consular processing are mutually exclusive immigrant paths."""
+    terms: list[str] = []
+    if re.search(
+        r"\bconsular|ds-260|national\s+visa\s+center|\bnvc\b|"
+        r"visa\s+stamp|immigrant\s+visa\s+interview|\babroad\b",
+        query,
+        re.I,
+    ):
+        terms.extend(["DS-260", "NVC"])
+    if re.search(r"\badjustment\s+of\s+status\b|\bi-485\b|\baos\b", query, re.I):
+        terms.extend(["adjustment of status", "I-485"])
+    if not terms:
+        terms.append("immigrant visa")
+    return terms
+
+
 MIN_RELEVANCE_SCORE = 0.22
 FETCH_MULTIPLIER = 6
 
@@ -130,7 +149,14 @@ class CourtListenerScraper:
         "eb1": ["eb-1", "eb1", "priority worker"],
         "eb2": ["eb-2", "eb2", "advanced degree", "perm"],
         "asylum": ["asylum", "withholding of removal", "convention against torture"],
-        "green_card": ["adjustment of status", "lawful permanent resident", "i-485"],
+        "green_card": [
+            "adjustment of status",
+            "lawful permanent resident",
+            "i-485",
+            "consular processing",
+            "ds-260",
+            "immigrant visa",
+        ],
         "f1": ["f-1", "student visa", "opt", "stem opt"],
     }
 
@@ -265,6 +291,8 @@ class CourtListenerScraper:
 
         if visa_type and visa_type in VISA_ANCHORS:
             terms.extend(VISA_ANCHORS[visa_type])
+        if visa_type == "green_card":
+            terms.extend(_green_card_subtopic_terms(query))
 
         for pattern, phrases in TOPIC_PHRASES:
             if pattern.search(query):
