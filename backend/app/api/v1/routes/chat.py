@@ -37,6 +37,7 @@ from app.services.session_context import (
     SessionHistory,
     expand_query_for_retrieval,
     format_session_context,
+    is_distinct_topic_query,
     is_follow_up_query,
     is_forms_follow_up_query,
     is_new_topic_query,
@@ -364,7 +365,13 @@ async def _run_pipeline(
             matter_context, matter_visa = await _load_matter_for_chat(
                 db, matter_id, current_user.id
             )
-            if matter_visa and not filter_context.visa_type:
+            # Matter visa scopes visaless follow-ups about this client. It must
+            # not lock N-400 / PERM / TPS questions to the matter's H-1B corpus.
+            if (
+                matter_visa
+                and not filter_context.visa_type
+                and not is_distinct_topic_query(clean_query)
+            ):
                 filter_context = await metadata_filter.apply_visa_override(
                     db, filter_context, matter_visa
                 )
@@ -555,7 +562,11 @@ async def _stream_pipeline(
                 matter_context, matter_visa = await _load_matter_for_chat(
                     db, body.matter_id, current_user.id
                 )
-                if matter_visa and not filter_context.visa_type:
+                if (
+                    matter_visa
+                    and not filter_context.visa_type
+                    and not is_distinct_topic_query(clean_query)
+                ):
                     filter_context = await metadata_filter.apply_visa_override(
                         db, filter_context, matter_visa
                     )

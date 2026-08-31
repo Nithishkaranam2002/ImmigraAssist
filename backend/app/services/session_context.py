@@ -88,6 +88,20 @@ FORMS_FOLLOW_UP_RE = re.compile(
     re.IGNORECASE,
 )
 
+# Legal topics that are a different research thread from a typical visa-coded
+# matter, even when the user does not name a visa code. Applying the matter's
+# H-1B/H-4/etc. filter here would drop the relevant policy corpus.
+DISTINCT_TOPIC_RE = re.compile(
+    r"\b(?:"
+    r"naturalization|citizenship|n[-\s]?400|"
+    r"deportation|removal\s+proceeding|cancellation\s+of\s+removal|"
+    r"inadmissib(?:le|ility)|tps|daca|vawa|"
+    r"diversity\s+visa|dv[-\s]?lottery|"
+    r"perm|labor\s+certification"
+    r")\b",
+    re.IGNORECASE,
+)
+
 EXPLICIT_SUBTOPIC_RE = re.compile(
     r"\b(ac21|i[-\s]?140|portability|premium\s+processing|lca|perm|prevailing\s+wage)\b",
     re.IGNORECASE,
@@ -103,6 +117,11 @@ SUBTOPIC_RETRIEVAL_CONTEXT: list[tuple[re.Pattern, str]] = [
 def is_forms_follow_up_query(query: str) -> bool:
     """True when the user is asking which USCIS forms to file."""
     return bool(FORMS_FOLLOW_UP_RE.search(query))
+
+
+def is_distinct_topic_query(query: str) -> bool:
+    """True when the question is a different legal thread than a visa-coded matter."""
+    return bool(query and DISTINCT_TOPIC_RE.search(query))
 
 
 def has_explicit_subtopic(query: str) -> bool:
