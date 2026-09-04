@@ -93,11 +93,54 @@ EXPLICIT_SUBTOPIC_RE = re.compile(
     re.IGNORECASE,
 )
 
+# AC21 §105 / INA 214(n) job-change portability — distinct from §106 H-4 EAD.
+PORTABILITY_RE = re.compile(
+    r"\bportability\b|\b(?:job|employer)\s+change\b|\bchange\s+employers?\b",
+    re.IGNORECASE,
+)
+
 SUBTOPIC_RETRIEVAL_CONTEXT: list[tuple[re.Pattern, str]] = [
+    # Portability must win over the generic AC21 → H-4 EAD expansion.
+    (
+        PORTABILITY_RE,
+        "H-1B AC21 portability INA 214(n) job change employer transfer",
+    ),
     (re.compile(r"\bac21\b", re.I), "H-1B AC21 section 106 H-4 EAD eligibility evidence"),
     (re.compile(r"\bi[-\s]?140\b", re.I), "H-4 EAD approved Form I-140 immigrant petition evidence"),
-    (re.compile(r"\bportability\b", re.I), "H-1B AC21 portability evidence"),
 ]
+
+
+def is_portability_query(query: str) -> bool:
+    """True when the user is asking about H-1B AC21 job-change portability (§105 / INA 214(n))."""
+    return bool(PORTABILITY_RE.search(query))
+
+
+def ac21_completeness_hints(query: str) -> list[str]:
+    """Prompt checklist lines for AC21 / I-140. Portability is not H-4 EAD §106."""
+    hints: list[str] = []
+    if is_portability_query(query):
+        hints.append(
+            "AC21 portability query — explain H-1B job-change portability under "
+            "INA 214(n) / AC21 §105 (new I-129, successor employer, remaining authorized stay). "
+            "Do NOT recast this as H-4 EAD eligibility under AC21 §106 unless the user asked about H-4 EAD."
+        )
+    elif re.search(r"\bac21\b", query, re.I):
+        hints.append(
+            "AC21 evidence query — explain what documentation proves the H-1B principal "
+            "meets AC21 §106(a) or §106(b) eligibility for H-4 EAD (per retrieved sources). "
+            "Do NOT repeat the Form I-765 filing checklist unless the user asks for forms."
+        )
+
+    if (
+        re.search(r"\bi[-\s]?140\b", query, re.I)
+        and re.search(r"\bevidence\b", query, re.I)
+        and not is_portability_query(query)
+    ):
+        hints.append(
+            "I-140 evidence query — explain what approval notice or petition documentation "
+            "demonstrates the principal's approved Form I-140 for H-4 EAD purposes."
+        )
+    return hints
 
 
 def is_forms_follow_up_query(query: str) -> bool:
