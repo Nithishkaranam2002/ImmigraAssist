@@ -15,8 +15,8 @@ VOLUME_PART_VISA: dict[tuple[int, str], str] = {
     (4, "f"): "asylum",
     (6, "a"): "green_card",
     (6, "b"): "green_card",
-    (6, "d"): "eb1",
-    (6, "e"): "eb2",
+    # Vol 6 Part D = Surviving Relatives (INA 204(l)) — not EB-1
+    # Vol 6 Part E = Employment-Based Immigration (all EB prefs) — not EB-2
     (6, "f"): "l1",
     (6, "g"): "o1",
     (6, "h"): "f1",
