@@ -1,5 +1,6 @@
 from app.services.session_context import (
     SessionHistory,
+    detect_visa_in_query,
     expand_query_for_retrieval,
     is_follow_up_query,
     is_forms_follow_up_query,
@@ -85,4 +86,37 @@ def test_new_topic_skips_retrieval_expansion():
         turn_count=1,
     )
     query = "What is the H-1B cap and how does the lottery work?"
+    assert expand_query_for_retrieval(query, session, new_topic=True) == query
+
+
+def test_detects_eb3_tn_and_e2_visa_codes():
+    assert detect_visa_in_query("What are the EB-3 eligibility requirements?") == "eb3"
+    assert detect_visa_in_query("What are the TN visa requirements?") == "tn"
+    assert detect_visa_in_query("What is the E-2 treaty investor process?") == "e2"
+    assert detect_visa_in_query("What are EB-2 NIW requirements?") == "eb2"
+
+
+def test_eb3_after_h1b_is_new_topic_not_follow_up():
+    """Named EB-3 must not inherit the prior H-1B exclusive corpus."""
+    session = SessionHistory(
+        text="Q: H-1B specialty occupation?\nA: ...",
+        last_query="What are H-1B specialty occupation requirements?",
+        last_visa_type="h1b",
+        turn_count=1,
+    )
+    query = "What are the EB-3 eligibility requirements?"
+    assert is_new_topic_query(query, session)
+    assert not is_follow_up_query(query, has_prior_turns=True)
+    assert expand_query_for_retrieval(query, session, new_topic=True) == query
+
+
+def test_tn_after_h1b_is_new_topic():
+    session = SessionHistory(
+        text="Q: H-1B?\nA: ...",
+        last_query="What are H-1B specialty occupation requirements?",
+        last_visa_type="h1b",
+        turn_count=1,
+    )
+    query = "What are the TN visa requirements?"
+    assert is_new_topic_query(query, session)
     assert expand_query_for_retrieval(query, session, new_topic=True) == query
