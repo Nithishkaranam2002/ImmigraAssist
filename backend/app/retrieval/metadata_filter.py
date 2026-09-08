@@ -25,9 +25,12 @@ VISA_PATTERNS = {
     "o1": re.compile(r"\bo[-\s]?1\b", re.IGNORECASE),
     "eb1": re.compile(r"\beb[-\s]?1\b", re.IGNORECASE),
     "eb2": re.compile(r"\beb[-\s]?2\b", re.IGNORECASE),
+    "eb3": re.compile(r"\beb[-\s]?3\b", re.IGNORECASE),
     "asylum": re.compile(r"\basylum\b", re.IGNORECASE),
     "green_card": re.compile(r"\bgreen\s*card\b", re.IGNORECASE),
     "f1": re.compile(r"\bf[-\s]?1\b", re.IGNORECASE),
+    "tn": re.compile(r"\btn\b", re.IGNORECASE),
+    "e2": re.compile(r"\be[-\s]?2\b", re.IGNORECASE),
 }
 
 YEAR_PATTERN = re.compile(r"\b(19|20)\d{2}\b")

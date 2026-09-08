@@ -35,6 +35,8 @@ VISA_FAMILY: dict[str, str] = {
     "f1": "f1",
     "asylum": "asylum",
     "green_card": "gc",
+    "tn": "tn",
+    "e2": "e2",
 }
 
 
@@ -67,6 +69,12 @@ def detect_visa_in_query(query: str) -> str | None:
         return "eb1"
     if re.search(r"\beb[-\s]?2\b", q):
         return "eb2"
+    if re.search(r"\beb[-\s]?3\b", q):
+        return "eb3"
+    if re.search(r"\btn\b", q):
+        return "tn"
+    if re.search(r"\be[-\s]?2\b", q):
+        return "e2"
     if re.search(r"\bf[-\s]?1\b", q):
         return "f1"
     if re.search(r"\basylum\b", q):
