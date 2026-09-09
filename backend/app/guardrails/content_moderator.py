@@ -45,7 +45,7 @@ IMMIGRATION_TOPIC_PATTERNS = [
     re.compile(r"\b(ead|work\s+auth|employment\s+authorization)", re.I),
     re.compile(r"\b(adjustment\s+of\s+status|consular\s+processing)", re.I),
     re.compile(r"\b(i-140|i-485|i-765|i-129|i-539|i-20|i-94)\b", re.I),
-    re.compile(r"\b(h[-\s]?1b|h[-\s]?4|l[-\s]?1|o[-\s]?1|eb[-\s]?[12]|f[-\s]?1)\b", re.I),
+    re.compile(r"\b(h[-\s]?1b|h[-\s]?4|l[-\s]?1[ab]?|o[-\s]?1[ab]?|eb[-\s]?(?:1[abc]?|2)|f[-\s]?1)\b", re.I),
 ]
 
 # normalize hyphenated visa codes so "H-1B" matches keyword "h1b"
@@ -53,8 +53,8 @@ VISA_NORMALIZATIONS = [
     (re.compile(r"\bh[-\s]?1b\b", re.IGNORECASE), "h1b"),
     (re.compile(r"\bh[-\s]?4\b", re.IGNORECASE), "h4"),
     (re.compile(r"\bl[-\s]?1[ab]?\b", re.IGNORECASE), "l1"),
-    (re.compile(r"\bo[-\s]?1\b", re.IGNORECASE), "o1"),
-    (re.compile(r"\beb[-\s]?1\b", re.IGNORECASE), "eb1"),
+    (re.compile(r"\bo[-\s]?1[ab]?\b", re.IGNORECASE), "o1"),
+    (re.compile(r"\beb[-\s]?1[abc]?\b", re.IGNORECASE), "eb1"),
     (re.compile(r"\beb[-\s]?2\b", re.IGNORECASE), "eb2"),
     (re.compile(r"\bf[-\s]?1\b", re.IGNORECASE), "f1"),
     (re.compile(r"\bb[-\s]?1\b", re.IGNORECASE), "b1"),

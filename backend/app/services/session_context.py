@@ -16,8 +16,8 @@ FOLLOW_UP_RE = re.compile(
 
 VISA_IN_QUERY_RE = re.compile(
     r"\b("
-    r"h[-\s]?1b|h[-\s]?4(?:\s*ead)?|l[-\s]?1[ab]?|o[-\s]?1|"
-    r"eb[-\s]?[123]|f[-\s]?1|asylum|green\s*card|tn\b|e[-\s]?2"
+    r"h[-\s]?1b|h[-\s]?4(?:\s*ead)?|l[-\s]?1[ab]?|o[-\s]?1[ab]?|"
+    r"eb[-\s]?(?:1[abc]?|[23])|f[-\s]?1|asylum|green\s*card|tn\b|e[-\s]?2"
     r")\b",
     re.IGNORECASE,
 )
@@ -61,9 +61,9 @@ def detect_visa_in_query(query: str) -> str | None:
         return "h1b"
     if re.search(r"\bl[-\s]?1[ab]?\b", q):
         return "l1"
-    if re.search(r"\bo[-\s]?1\b", q):
+    if re.search(r"\bo[-\s]?1[ab]?\b", q):
         return "o1"
-    if re.search(r"\beb[-\s]?1\b", q):
+    if re.search(r"\beb[-\s]?1[abc]?\b", q):
         return "eb1"
     if re.search(r"\beb[-\s]?2\b", q):
         return "eb2"
