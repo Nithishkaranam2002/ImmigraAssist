@@ -18,13 +18,15 @@ class FilterContext:
 
 
 VISA_PATTERNS = {
-    "h1b": re.compile(r"\bh[-\s]?1b\b", re.IGNORECASE),
+    "h1b": re.compile(r"\bh[-\s]?1b1?\b", re.IGNORECASE),
     "h4": re.compile(r"\bh[-\s]?4\b", re.IGNORECASE),
     "h4_ead": re.compile(r"\bh[-\s]?4\s*ead\b", re.IGNORECASE),
     "l1": re.compile(r"\bl[-\s]?1[ab]?\b", re.IGNORECASE),
     "o1": re.compile(r"\bo[-\s]?1\b", re.IGNORECASE),
     "eb1": re.compile(r"\beb[-\s]?1\b", re.IGNORECASE),
     "eb2": re.compile(r"\beb[-\s]?2\b", re.IGNORECASE),
+    "e3": re.compile(r"\be[-\s]?3\b", re.IGNORECASE),
+    "j1": re.compile(r"\bj[-\s]?1\b", re.IGNORECASE),
     "asylum": re.compile(r"\basylum\b", re.IGNORECASE),
     "green_card": re.compile(r"\bgreen\s*card\b", re.IGNORECASE),
     "f1": re.compile(r"\bf[-\s]?1\b", re.IGNORECASE),
