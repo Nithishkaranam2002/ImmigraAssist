@@ -23,7 +23,7 @@ class ModerationResult:
 IMMIGRATION_KEYWORDS = [
     "visa", "immigration", "uscis", "petition", "asylum", "green card",
     "work permit", "ead", "i-140", "i-485", "i-765", "i-131", "i-20", "i-94",
-    "h1b", "h4", "l1", "o1", "eb1", "eb2", "f1", "b1", "b2", "j1", "tn",
+    "h1b", "h4", "l1", "l2", "o1", "eb1", "eb2", "eb5", "e1", "f1", "b1", "b2", "j1", "tn",
     "naturalization", "citizenship", "deportation", "removal",
     "appeal", "denial", "approval", "case", "filing", "form",
     "policy", "regulation", "section", "clause", "law", "rule",
@@ -45,7 +45,7 @@ IMMIGRATION_TOPIC_PATTERNS = [
     re.compile(r"\b(ead|work\s+auth|employment\s+authorization)", re.I),
     re.compile(r"\b(adjustment\s+of\s+status|consular\s+processing)", re.I),
     re.compile(r"\b(i-140|i-485|i-765|i-129|i-539|i-20|i-94)\b", re.I),
-    re.compile(r"\b(h[-\s]?1b|h[-\s]?4|l[-\s]?1|o[-\s]?1|eb[-\s]?[12]|f[-\s]?1)\b", re.I),
+    re.compile(r"\b(h[-\s]?1b|h[-\s]?4|l[-\s]?[12]|o[-\s]?1|eb[-\s]?[125]|e[-\s]?1|f[-\s]?1)\b", re.I),
 ]
 
 # normalize hyphenated visa codes so "H-1B" matches keyword "h1b"
@@ -53,9 +53,12 @@ VISA_NORMALIZATIONS = [
     (re.compile(r"\bh[-\s]?1b\b", re.IGNORECASE), "h1b"),
     (re.compile(r"\bh[-\s]?4\b", re.IGNORECASE), "h4"),
     (re.compile(r"\bl[-\s]?1[ab]?\b", re.IGNORECASE), "l1"),
+    (re.compile(r"\bl[-\s]?2\b", re.IGNORECASE), "l2"),
     (re.compile(r"\bo[-\s]?1\b", re.IGNORECASE), "o1"),
     (re.compile(r"\beb[-\s]?1\b", re.IGNORECASE), "eb1"),
     (re.compile(r"\beb[-\s]?2\b", re.IGNORECASE), "eb2"),
+    (re.compile(r"\beb[-\s]?5\b", re.IGNORECASE), "eb5"),
+    (re.compile(r"\be[-\s]?1\b", re.IGNORECASE), "e1"),
     (re.compile(r"\bf[-\s]?1\b", re.IGNORECASE), "f1"),
     (re.compile(r"\bb[-\s]?1\b", re.IGNORECASE), "b1"),
     (re.compile(r"\bb[-\s]?2\b", re.IGNORECASE), "b2"),
