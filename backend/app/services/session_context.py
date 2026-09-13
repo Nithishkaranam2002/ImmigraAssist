@@ -17,7 +17,10 @@ FOLLOW_UP_RE = re.compile(
 VISA_IN_QUERY_RE = re.compile(
     r"\b("
     r"h[-\s]?1b|h[-\s]?4(?:\s*ead)?|l[-\s]?1[ab]?|o[-\s]?1|"
-    r"eb[-\s]?[123]|f[-\s]?1|asylum|green\s*card|tn\b|e[-\s]?2"
+    r"eb[-\s]?[123]|f[-\s]?1|asylum|green\s*card|tn\b|e[-\s]?2|"
+    r"u[-\s]?(?:visa|nonimmigrant|[1-5])|"
+    r"t[-\s]?(?:visa|nonimmigrant|[1-6])|"
+    r"tps|temporary\s+protected\s+status"
     r")\b",
     re.IGNORECASE,
 )
@@ -33,6 +36,9 @@ VISA_FAMILY: dict[str, str] = {
     "eb2": "eb",
     "eb3": "eb",
     "f1": "f1",
+    "u": "u",
+    "t": "t",
+    "tps": "tps",
     "asylum": "asylum",
     "green_card": "gc",
 }
@@ -69,6 +75,12 @@ def detect_visa_in_query(query: str) -> str | None:
         return "eb2"
     if re.search(r"\bf[-\s]?1\b", q):
         return "f1"
+    if re.search(r"\btps\b|\btemporary\s+protected\s+status\b", q):
+        return "tps"
+    if re.search(r"\bt[-\s]?(?:visa|nonimmigrant|[1-6])\b", q):
+        return "t"
+    if re.search(r"\bu[-\s]?(?:visa|nonimmigrant|[1-5])\b", q):
+        return "u"
     if re.search(r"\basylum\b", q):
         return "asylum"
     if re.search(r"\bgreen\s*card\b", q):
