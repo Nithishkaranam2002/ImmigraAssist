@@ -28,6 +28,9 @@ VISA_PATTERNS = {
     "asylum": re.compile(r"\basylum\b", re.IGNORECASE),
     "green_card": re.compile(r"\bgreen\s*card\b", re.IGNORECASE),
     "f1": re.compile(r"\bf[-\s]?1\b", re.IGNORECASE),
+    "u": re.compile(r"\bu[-\s]?(?:visa|nonimmigrant|[1-5])\b", re.IGNORECASE),
+    "t": re.compile(r"\bt[-\s]?(?:visa|nonimmigrant|[1-6])\b", re.IGNORECASE),
+    "tps": re.compile(r"\btps\b|\btemporary\s+protected\s+status\b", re.IGNORECASE),
 }
 
 YEAR_PATTERN = re.compile(r"\b(19|20)\d{2}\b")
