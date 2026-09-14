@@ -17,7 +17,7 @@ FOLLOW_UP_RE = re.compile(
 VISA_IN_QUERY_RE = re.compile(
     r"\b("
     r"h[-\s]?1b|h[-\s]?4(?:\s*ead)?|l[-\s]?1[ab]?|o[-\s]?1|"
-    r"eb[-\s]?[123]|f[-\s]?1|asylum|green\s*card|tn\b|e[-\s]?2"
+    r"eb[-\s]?[123]|f[-\s]?1|m[-\s]?[12]|asylum|green\s*card|tn\b|e[-\s]?2"
     r")\b",
     re.IGNORECASE,
 )
@@ -33,6 +33,8 @@ VISA_FAMILY: dict[str, str] = {
     "eb2": "eb",
     "eb3": "eb",
     "f1": "f1",
+    "m1": "m1",
+    "m2": "m2",
     "asylum": "asylum",
     "green_card": "gc",
 }
@@ -69,6 +71,10 @@ def detect_visa_in_query(query: str) -> str | None:
         return "eb2"
     if re.search(r"\bf[-\s]?1\b", q):
         return "f1"
+    if re.search(r"\bm[-\s]?1\b", q):
+        return "m1"
+    if re.search(r"\bm[-\s]?2\b", q):
+        return "m2"
     if re.search(r"\basylum\b", q):
         return "asylum"
     if re.search(r"\bgreen\s*card\b", q):
