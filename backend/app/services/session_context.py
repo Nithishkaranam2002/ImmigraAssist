@@ -17,7 +17,8 @@ FOLLOW_UP_RE = re.compile(
 VISA_IN_QUERY_RE = re.compile(
     r"\b("
     r"h[-\s]?1b|h[-\s]?4(?:\s*ead)?|l[-\s]?1[ab]?|o[-\s]?1|"
-    r"eb[-\s]?[123]|f[-\s]?1|asylum|green\s*card|tn\b|e[-\s]?2"
+    r"eb[-\s]?[123]|f[-\s]?1|asylum|asylees?|daca|vawa|refugees?|"
+    r"green\s*card|tn\b|e[-\s]?2"
     r")\b",
     re.IGNORECASE,
 )
@@ -34,6 +35,9 @@ VISA_FAMILY: dict[str, str] = {
     "eb3": "eb",
     "f1": "f1",
     "asylum": "asylum",
+    "daca": "daca",
+    "vawa": "vawa",
+    "refugee": "refugee",
     "green_card": "gc",
 }
 
@@ -69,8 +73,17 @@ def detect_visa_in_query(query: str) -> str | None:
         return "eb2"
     if re.search(r"\bf[-\s]?1\b", q):
         return "f1"
-    if re.search(r"\basylum\b", q):
+    if re.search(
+        r"\bdaca\b|deferred\s+action(?:\s+for\s+childhood\s+arrivals)?|\bi[-\s]?821d\b",
+        q,
+    ):
+        return "daca"
+    if re.search(r"\bvawa\b|violence\s+against\s+women(?:\s+act)?", q):
+        return "vawa"
+    if re.search(r"\basylum\b|\basylees?\b", q):
         return "asylum"
+    if re.search(r"\brefugees?\b", q):
+        return "refugee"
     if re.search(r"\bgreen\s*card\b", q):
         return "green_card"
     return None
