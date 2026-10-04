@@ -24,6 +24,7 @@ IMMIGRATION_KEYWORDS = [
     "visa", "immigration", "uscis", "petition", "asylum", "green card",
     "work permit", "ead", "i-140", "i-485", "i-765", "i-131", "i-20", "i-94",
     "h1b", "h4", "l1", "o1", "eb1", "eb2", "f1", "b1", "b2", "j1", "tn",
+    "parole", "parolee", "sij", "sijs", "special immigrant juvenile",
     "naturalization", "citizenship", "deportation", "removal",
     "appeal", "denial", "approval", "case", "filing", "form",
     "policy", "regulation", "section", "clause", "law", "rule",
@@ -46,6 +47,10 @@ IMMIGRATION_TOPIC_PATTERNS = [
     re.compile(r"\b(adjustment\s+of\s+status|consular\s+processing)", re.I),
     re.compile(r"\b(i-140|i-485|i-765|i-129|i-539|i-20|i-94)\b", re.I),
     re.compile(r"\b(h[-\s]?1b|h[-\s]?4|l[-\s]?1|o[-\s]?1|eb[-\s]?[12]|f[-\s]?1)\b", re.I),
+    re.compile(
+        r"\b(sijs?|parole(?:e|es|s)?|special\s+immigrant\s+juveniles?)\b",
+        re.I,
+    ),
 ]
 
 # normalize hyphenated visa codes so "H-1B" matches keyword "h1b"
