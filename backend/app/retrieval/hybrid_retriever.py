@@ -3,6 +3,7 @@ from typing import Optional
 from rank_bm25 import BM25Okapi
 from app.db.milvus import get_laws_collection, get_cases_collection
 from app.retrieval.metadata_filter import FilterContext
+from app.retrieval.milvus_filter import batched_document_ids, milvus_document_id_expr
 from app.config import settings
 from app.utils.logger import logger
 from langsmith import traceable
@@ -100,9 +101,6 @@ class HybridRetriever:
         if not document_ids:
             return []
 
-        id_list = '", "'.join(document_ids[:50])
-        expr = f'document_id in ["{id_list}"]'
-
         if source == "law":
             output_fields = [
                 "chunk_id", "document_id", "text", "section",
@@ -114,24 +112,32 @@ class HybridRetriever:
                 "visa_type", "outcome", "jurisdiction",
             ]
 
-        try:
-            dense_results = collection.search(
-                data=[query_embedding],
-                anns_field="embedding",
-                param={
-                    "metric_type": "COSINE",
-                    "params": {"ef": settings.MILVUS_SEARCH_EF},
-                },
-                limit=top_k * 2,
-                expr=expr,
-                output_fields=output_fields,
-            )
-        except Exception as e:
-            logger.error(f"Milvus search failed for {source}: {e}")
-            return []
+        # Search every document. A single `in` list is batched so the Milvus
+        # expression stays bounded; keeping only the first batch dropped every
+        # policy chapter past the first 50 IDs (the scrape manifest is ~200).
+        dense_hits: list[dict] = []
+        hit_index_by_chunk: dict[str, int] = {}
+        for batch in batched_document_ids(document_ids):
+            expr = milvus_document_id_expr(batch)
+            try:
+                dense_results = collection.search(
+                    data=[query_embedding],
+                    anns_field="embedding",
+                    param={
+                        "metric_type": "COSINE",
+                        "params": {"ef": settings.MILVUS_SEARCH_EF},
+                    },
+                    limit=top_k * 2,
+                    expr=expr,
+                    output_fields=output_fields,
+                )
+            except Exception as e:
+                logger.error(f"Milvus search failed for {source}: {e}")
+                continue
 
-        dense_hits = []
-        if dense_results and dense_results[0]:
+            if not dense_results or not dense_results[0]:
+                continue
+
             for hit in dense_results[0]:
                 chunk_id = self._extract_field(hit, "chunk_id")
                 document_id = self._extract_field(hit, "document_id")
@@ -146,7 +152,7 @@ class HybridRetriever:
                     section = None
                     clause = None
 
-                dense_hits.append({
+                record = {
                     "chunk_id": chunk_id,
                     "document_id": document_id,
                     "text": text,
@@ -155,7 +161,15 @@ class HybridRetriever:
                     "doc_version": doc_version,
                     "visa_type": visa_type,
                     "vector_score": hit.score,
-                })
+                }
+                if chunk_id and chunk_id in hit_index_by_chunk:
+                    idx = hit_index_by_chunk[chunk_id]
+                    if record["vector_score"] > dense_hits[idx]["vector_score"]:
+                        dense_hits[idx] = record
+                    continue
+                if chunk_id:
+                    hit_index_by_chunk[chunk_id] = len(dense_hits)
+                dense_hits.append(record)
 
         if not dense_hits:
             return []
