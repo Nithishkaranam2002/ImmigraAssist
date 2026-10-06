@@ -91,6 +91,50 @@ def test_stem_opt_query_drops_unrelated_cases(scraper):
     assert result == []
 
 
+def test_removal_of_conditions_does_not_search_deportation(scraper):
+    """I-751 questions must not be retrieved as removal proceedings."""
+    terms = scraper._build_search_query(
+        "What is the process for removal of conditions on permanent residence?",
+        None,
+    )
+    lowered = terms.lower()
+    assert "deportation" not in lowered
+    assert "cancellation" not in lowered
+    assert "conditions" in lowered
+    assert "residence" in lowered
+
+
+def test_removal_of_conditional_basis_does_not_search_deportation(scraper):
+    terms = scraper._build_search_query(
+        "Explain removal of the conditional basis of permanent residence.",
+        None,
+    )
+    lowered = terms.lower()
+    assert "deportation" not in lowered
+    assert "cancellation" not in lowered
+    assert "conditional" in lowered
+
+
+def test_removal_proceedings_still_search_deportation(scraper):
+    terms = scraper._build_search_query(
+        "What are the grounds of removal?",
+        None,
+    )
+    assert "deportation" in terms.lower()
+    assert "removal" in terms.lower()
+
+
+def test_cancellation_of_removal_still_searches_removal_terms(scraper):
+    terms = scraper._build_search_query(
+        "What are the eligibility requirements for cancellation of removal?",
+        None,
+    )
+    lowered = terms.lower()
+    assert "deportation" in lowered
+    assert "cancellation" in lowered
+    assert "removal" in lowered
+
+
 def test_rank_and_filter_drops_irrelevant(scraper):
     good = CourtCase(
         case_name="H-4 EAD employment authorization",
