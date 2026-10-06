@@ -52,7 +52,17 @@ TOPIC_PHRASES: list[tuple[re.Pattern, list[str]]] = [
     (re.compile(r"\beligib|qualif|require", re.I), ["eligibility", "requirements"]),
     (re.compile(r"\bdeni", re.I), ["denial", "denied", "appeal"]),
     (re.compile(r"\bnaturalization|citizenship|n-400", re.I), ["naturalization", "citizenship"]),
-    (re.compile(r"\bdeport|removal|cancellation", re.I), ["deportation", "removal", "cancellation"]),
+    # "Removal of conditions" / "removal of the conditional basis" is the I-751
+    # process (INA 216), not removal proceedings. A bare "removal" alternative
+    # injected deportation and cancellation-of-removal terms ahead of the
+    # user's words and crowded the 10-term CourtListener query.
+    (
+        re.compile(
+            r"\b(?:deport|cancellation|removal(?!\s+of\s+(?:the\s+)?condition))\b",
+            re.I,
+        ),
+        ["deportation", "removal", "cancellation"],
+    ),
     (re.compile(r"\bcompare|versus|vs\.?\b", re.I), ["comparison", "visa category"]),
     (re.compile(r"\b180[- ]day|extension", re.I), ["180-day extension", "status extension"]),
     (re.compile(r"\bconsular|visa\s+stamp|abroad", re.I), ["consular processing", "visa stamp"]),
