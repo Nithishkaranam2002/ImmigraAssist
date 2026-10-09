@@ -44,6 +44,10 @@ IMMIGRATION_TOPIC_PATTERNS = [
     re.compile(r"\b(cap|lottery|lca\b|premium\s+processing)", re.I),
     re.compile(r"\b(ead|work\s+auth|employment\s+authorization)", re.I),
     re.compile(r"\b(adjustment\s+of\s+status|consular\s+processing)", re.I),
+    re.compile(
+        r"\b(labor\s+certification|labor\s+market\s+test|national\s+interest\s+waiver|niw)\b",
+        re.I,
+    ),
     re.compile(r"\b(i-140|i-485|i-765|i-129|i-539|i-20|i-94)\b", re.I),
     re.compile(r"\b(h[-\s]?1b|h[-\s]?4|l[-\s]?1|o[-\s]?1|eb[-\s]?[12]|f[-\s]?1)\b", re.I),
 ]
@@ -62,13 +66,40 @@ VISA_NORMALIZATIONS = [
 ]
 
 # blocked patterns — queries that should never be processed
+# "bypass" is not a bare block: attorneys use it for NIW labor certification,
+# cap exemption, and consular processing. Injection uses are listed separately.
 BLOCKED_PATTERNS = [
-    re.compile(r"\b(ignore|forget|override)\s+(your\s+)?(instructions|rules|guidelines|system\s+prompt)\b", re.IGNORECASE),
-    re.compile(r"\b(jailbreak|bypass|hack|exploit)\b", re.IGNORECASE),
+    re.compile(r"\b(ignore|forget|override|bypass)\s+(your\s+)?(instructions|rules|guidelines|system\s+prompt)\b", re.IGNORECASE),
+    re.compile(
+        r"\bbypass\s+(?:the\s+|your\s+)?(?:system\s+prompt|safety\s+filters?|guardrails?|content\s+filters?|moderation)\b",
+        re.IGNORECASE,
+    ),
+    re.compile(r"\b(jailbreak|hack|exploit)\b", re.IGNORECASE),
     re.compile(r"\b(pretend|act as|you are now|roleplay as)\b", re.IGNORECASE),
     re.compile(r"\b(bomb|weapon|kill|murder|terrorist)\b", re.IGNORECASE),
     re.compile(r"(```|<script|<\/script|SELECT\s+\*\s+FROM)", re.IGNORECASE),  # injection attempts
 ]
+
+# Bare "bypass" is a legal research verb unless it targets the assistant or an attack.
+BYPASS_WORD = re.compile(r"\bbypass\b", re.IGNORECASE)
+
+BYPASS_ATTACK = re.compile(
+    r"\b(?:authentication|password|passwords|firewall|malware|payload|injection)\b",
+    re.IGNORECASE,
+)
+
+# Objects that make "bypass" an immigration question rather than a jailbreak.
+LEGAL_BYPASS_CONTEXT = re.compile(
+    r"\b(?:"
+    r"labor\s+certification|labor\s+market|perm|consular(?:\s+processing)?|"
+    r"h[-\s]?1b|h[-\s]?4|l[-\s]?1|o[-\s]?1|eb[-\s]?[123]|f[-\s]?1|"
+    r"cap|lottery|visa|petitions?|petitioner|waiver|inadmissib\w*|"
+    r"national\s+interest|niw|portability|ac21|ead|"
+    r"i-140|i-485|i-765|adjustment\s+of\s+status|green\s*card|"
+    r"asylum|naturalization|citizenship|lca|priority\s+date"
+    r")\b",
+    re.IGNORECASE,
+)
 
 # warning patterns — allow but log
 WARNING_PATTERNS = [
@@ -118,6 +149,12 @@ class ContentModerator:
     def _is_immigration_topic(self, query: str) -> bool:
         return any(p.search(query) for p in IMMIGRATION_TOPIC_PATTERNS)
 
+    def _bypass_is_legal_research(self, query: str) -> bool:
+        """True when 'bypass' refers to a legal requirement, not the assistant."""
+        if BYPASS_ATTACK.search(query):
+            return False
+        return bool(LEGAL_BYPASS_CONTEXT.search(query))
+
     def moderate(self, query: str) -> ModerationResult:
         """
         Main entry point.
@@ -141,6 +178,17 @@ class ContentModerator:
                     original_query=query,
                     is_safe=False,
                 )
+
+        # Bare "bypass" blocks NIW, cap-exempt, and consular questions.
+        # Prompt-injection phrasing was already rejected above.
+        if BYPASS_WORD.search(query) and not self._bypass_is_legal_research(query):
+            logger.warning(f"Query blocked by bare bypass: '{query[:80]}'")
+            return ModerationResult(
+                status=ModerationStatus.BLOCKED,
+                reason="Query contains prohibited content",
+                original_query=query,
+                is_safe=False,
+            )
 
         # ── Layer 2: Scope check ───────────────────────────────────────
         immigration_score = self._immigration_score(query)
