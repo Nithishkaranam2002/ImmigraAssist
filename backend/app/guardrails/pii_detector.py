@@ -46,11 +46,26 @@ class PIIDetector:
         "visa number",
     ]
 
-    # Regex fallback patterns
+    # Regex fallback patterns.
+    # Dates, ZIP codes, and phones stay contextual. The chat sanitizer rewrites
+    # every [REDACTED-*] token to "the applicant", so a bare MM/DD/YYYY priority
+    # date, a 5-digit cap figure, or a USCIS receipt tail would be deleted from
+    # the question and from the answer the attorney sees.
+    _NUMERIC_DATE = r"(?:0?[1-9]|1[0-2])[/\-](?:0?[1-9]|[12]\d|3[01])[/\-](?:19|20)\d{2}"
+    _DOB_LABEL = (
+        r"(?:\b(?:date of birth|birth date|birthday|born on|born|dob)\b|\bd\.o\.b\.?)"
+    )
+    _ZIP = r"\d{5}(?:-\d{4})?"
+    _STATE_ABBR = (
+        "AL|AK|AZ|AR|CA|CO|CT|DE|FL|GA|HI|ID|IL|IN|IA|KS|KY|LA|ME|MD|MA|MI|MN|MS|"
+        "MO|MT|NE|NV|NH|NJ|NM|NY|NC|ND|OH|OK|OR|PA|RI|SC|SD|TN|TX|UT|VT|VA|WA|WV|WI|WY|DC"
+    )
     REGEX_PATTERNS = {
         "SSN": re.compile(r"\b\d{3}-\d{2}-\d{4}\b"),
         "PHONE": re.compile(
-            r"\b(\+1[-.\s]?)?\(?\d{3}\)?[-.\s]?\d{3}[-.\s]?\d{4}\b"
+            # A separator or parentheses is required. Bare 10-digit strings are
+            # USCIS receipt tails (IOE 0912345678, EAC-2390123456), not phones.
+            r"(?<!\d)(?:\+1[-.\s]?)?(?:\(\d{3}\)[-.\s]?|\d{3}[-.\s])\d{3}[-.\s]\d{4}\b"
         ),
         "EMAIL": re.compile(
             r"\b[A-Za-z0-9._%+\-]+@[A-Za-z0-9.\-]+\.[A-Z|a-z]{2,}\b"
@@ -58,9 +73,14 @@ class PIIDetector:
         "PASSPORT": re.compile(r"\b[A-Z]{1,2}\d{6,9}\b"),
         "ALIEN_NUMBER": re.compile(r"\bA[-\s]?\d{8,9}\b", re.IGNORECASE),
         "DATE_OF_BIRTH": re.compile(
-            r"\b(0?[1-9]|1[0-2])[\/\-](0?[1-9]|[12]\d|3[01])[\/\-](19|20)\d{2}\b"
+            rf"(?i:{_DOB_LABEL}(?:\s+(?:is|was|of|on))?\s*[:\-]?\s*{_NUMERIC_DATE}\b)"
+            rf"|(?i:\b{_NUMERIC_DATE}\b\s*[\(\[]?\s*(?:date of birth|birth date|d\.o\.b\.?|dob)\b\)?)"
         ),
-        "ZIP_CODE": re.compile(r"\b\d{5}(?:-\d{4})?\b"),
+        "ZIP_CODE": re.compile(
+            rf"(?i:\b(?:zip(?:\s*code)?|postal(?:\s*code)?)\b\s*[:\-]?\s*{_ZIP}\b)"
+            # State codes stay uppercase so the preposition "in" is not Indiana.
+            rf"|\b(?:{_STATE_ABBR})\s+{_ZIP}\b"
+        ),
     }
 
     def __init__(self):
