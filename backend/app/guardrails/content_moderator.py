@@ -46,6 +46,26 @@ IMMIGRATION_TOPIC_PATTERNS = [
     re.compile(r"\b(adjustment\s+of\s+status|consular\s+processing)", re.I),
     re.compile(r"\b(i-140|i-485|i-765|i-129|i-539|i-20|i-94)\b", re.I),
     re.compile(r"\b(h[-\s]?1b|h[-\s]?4|l[-\s]?1|o[-\s]?1|eb[-\s]?[12]|f[-\s]?1)\b", re.I),
+    # Inadmissibility, family forms, and humanitarian categories are core
+    # immigration research even when the question never says "visa" or "asylum".
+    re.compile(
+        r"\b("
+        r"unlawful\s+presence|public\s+charge|extreme\s+hardship|"
+        r"inadmissib(?:le|ility)|provisional\s+waiver|"
+        r"(?:three|ten|3|10)[-\s]year\s+bars?|"
+        r"entered\s+without\s+inspection|ewi|"
+        r"qualifying\s+relative|affidavit\s+of\s+support|"
+        r"conditional\s+residents?|remov(?:e|ing)\s+conditions|"
+        r"good\s+moral\s+character|temporary\s+protected\s+status|"
+        r"humanitarian\s+parole|advance\s+parole|parole\s+in\s+place|"
+        r"parol(?:ed|ees|ee)|special\s+immigrant\s+juvenile|"
+        r"daca|tps|vawa|refugee|asylee|sijs?|"
+        r"i[-\s]?601a?|i[-\s]?212|i[-\s]?130|i[-\s]?360|i[-\s]?751|i[-\s]?864a?|"
+        r"n[-\s]?400|ina\s*212"
+        r")\b",
+        re.I,
+    ),
+    re.compile(r"\b212\s*\(\s*a\s*\)", re.I),
 ]
 
 # normalize hyphenated visa codes so "H-1B" matches keyword "h1b"
