@@ -39,6 +39,7 @@ from app.services.session_context import (
     format_session_context,
     is_follow_up_query,
     is_forms_follow_up_query,
+    is_inadmissibility_ground_query,
     is_new_topic_query,
 )
 from app.config import settings
@@ -364,7 +365,13 @@ async def _run_pipeline(
             matter_context, matter_visa = await _load_matter_for_chat(
                 db, matter_id, current_user.id
             )
-            if matter_visa and not filter_context.visa_type:
+            # Grounds questions have no visa code. Do not lock them to the
+            # open matter's corpus (for example H-1B policy for a ten-year bar).
+            if (
+                matter_visa
+                and not filter_context.visa_type
+                and not is_inadmissibility_ground_query(clean_query)
+            ):
                 filter_context = await metadata_filter.apply_visa_override(
                     db, filter_context, matter_visa
                 )
@@ -555,7 +562,12 @@ async def _stream_pipeline(
                 matter_context, matter_visa = await _load_matter_for_chat(
                     db, body.matter_id, current_user.id
                 )
-                if matter_visa and not filter_context.visa_type:
+                # Same matter-corpus guard as the non-streaming pipeline.
+                if (
+                    matter_visa
+                    and not filter_context.visa_type
+                    and not is_inadmissibility_ground_query(clean_query)
+                ):
                     filter_context = await metadata_filter.apply_visa_override(
                         db, filter_context, matter_visa
                     )

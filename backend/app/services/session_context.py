@@ -100,9 +100,31 @@ SUBTOPIC_RETRIEVAL_CONTEXT: list[tuple[re.Pattern, str]] = [
 ]
 
 
+# Inadmissibility and waiver topics are not a visa code. A follow-up that
+# names them must not keep the previous turn's or the open matter's visa corpus.
+INADMISSIBILITY_GROUND_RE = re.compile(
+    r"\b(?:"
+    r"unlawfully\s+present|unlawful\s+presence|"
+    r"public\s+charge|"
+    r"extreme\s+hardship|"
+    r"ewi|entry\s+without\s+inspection|entered\s+without\s+inspection|"
+    r"entering\s+without\s+inspection|"
+    r"present\s+without\s+(?:admission|inspection)|"
+    r"(?:three|ten|3|10)[-\s]year\s+bars?|"
+    r"provisional\s+waiver"
+    r")\b",
+    re.IGNORECASE,
+)
+
+
 def is_forms_follow_up_query(query: str) -> bool:
     """True when the user is asking which USCIS forms to file."""
     return bool(FORMS_FOLLOW_UP_RE.search(query))
+
+
+def is_inadmissibility_ground_query(query: str) -> bool:
+    """True when the question is about a ground of inadmissibility or its waiver."""
+    return bool(query and INADMISSIBILITY_GROUND_RE.search(query))
 
 
 def has_explicit_subtopic(query: str) -> bool:
@@ -148,6 +170,12 @@ def is_new_topic_query(query: str, session: SessionHistory) -> bool:
         return True
 
     if len(q.split()) > 12 and not FOLLOW_UP_RE.search(q) and detected:
+        return True
+
+    # These grounds are a different research thread from the prior visa Q&A.
+    # Leaving new_topic false prepends the prior question and re-applies its
+    # visa filter, so unlawful-presence research is searched as H-1B policy.
+    if is_inadmissibility_ground_query(q):
         return True
 
     return False
