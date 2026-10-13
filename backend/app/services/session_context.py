@@ -100,9 +100,30 @@ SUBTOPIC_RETRIEVAL_CONTEXT: list[tuple[re.Pattern, str]] = [
 ]
 
 
+# I-751 / conditional residence is its own thread. These questions usually
+# name no visa code, so a prior H-1B turn or an open H-1B matter would
+# otherwise exclusive-filter the law corpus to H-1B policy.
+CONDITIONAL_RESIDENCE_RE = re.compile(
+    r"\b(?:"
+    r"i[-\s]?751|"
+    r"removal\s+of\s+(?:the\s+)?conditions|"
+    r"remov(?:e|ing)\s+(?:the\s+)?conditions|"
+    r"conditions\s+on\s+residence|"
+    r"conditional\s+(?:permanent\s+)?residents?|"
+    r"conditional\s+(?:permanent\s+)?residence"
+    r")\b",
+    re.IGNORECASE,
+)
+
+
 def is_forms_follow_up_query(query: str) -> bool:
     """True when the user is asking which USCIS forms to file."""
     return bool(FORMS_FOLLOW_UP_RE.search(query))
+
+
+def is_conditional_residence_query(query: str) -> bool:
+    """True when the question is about I-751 or conditional permanent residence."""
+    return bool(query and CONDITIONAL_RESIDENCE_RE.search(query))
 
 
 def has_explicit_subtopic(query: str) -> bool:
@@ -148,6 +169,12 @@ def is_new_topic_query(query: str, session: SessionHistory) -> bool:
         return True
 
     if len(q.split()) > 12 and not FOLLOW_UP_RE.search(q) and detected:
+        return True
+
+    # I-751 questions have no visa code. Leaving new_topic false prepends the
+    # prior question and re-applies its visa filter, so removal-of-conditions
+    # research is searched as H-1B (or whatever the last turn was).
+    if is_conditional_residence_query(q):
         return True
 
     return False
