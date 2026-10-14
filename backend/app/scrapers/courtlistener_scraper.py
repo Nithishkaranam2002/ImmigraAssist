@@ -60,8 +60,19 @@ TOPIC_PHRASES: list[tuple[re.Pattern, list[str]]] = [
         re.compile(r"\b(opt\b|stem\s+opt|cpt\b|practical\s+training|sevis|i-983)", re.I),
         ["STEM OPT", "OPT extension", "F-1 student", "Form I-983"],
     ),
+    # These phrases describe the 24-month STEM OPT extension only.
+    # Bare "how long", "duration", or "month(s)" also appear in H-1B/L-1
+    # stay limits and unlawful-presence bars. Injecting them unconditionally
+    # put "STEM OPT duration" in the first slots of the 10-term query and
+    # retrieved F-1 OPT cases for those questions.
     (
-        re.compile(r"\bhow\s+long|duration|months?\b", re.I),
+        re.compile(
+            r"\bstem\s+opt\b.{0,48}\b(?:how\s+long|duration|months?)\b"
+            r"|\b(?:how\s+long|duration|months?)\b.{0,48}\bstem\s+opt\b"
+            r"|\b24[-\s]?months?\b.{0,40}\b(?:stem\s+)?opt\b"
+            r"|\b(?:stem\s+)?opt\b.{0,40}\b24[-\s]?months?\b",
+            re.I,
+        ),
         ["24 month", "STEM OPT duration", "OPT period"],
     ),
 ]
