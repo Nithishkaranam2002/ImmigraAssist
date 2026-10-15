@@ -54,7 +54,16 @@ TOPIC_PHRASES: list[tuple[re.Pattern, list[str]]] = [
     (re.compile(r"\bnaturalization|citizenship|n-400", re.I), ["naturalization", "citizenship"]),
     (re.compile(r"\bdeport|removal|cancellation", re.I), ["deportation", "removal", "cancellation"]),
     (re.compile(r"\bcompare|versus|vs\.?\b", re.I), ["comparison", "visa category"]),
-    (re.compile(r"\b180[- ]day|extension", re.I), ["180-day extension", "status extension"]),
+    # 180-day automatic extensions of status or EAD only.
+    # Bare "extension" also appears in H-1B six-year extensions, L-1
+    # extensions of stay, I-751 conditional-residence extensions, and
+    # STEM OPT. The ungrouped "|" made "extension" its own alternative,
+    # so those questions were rewritten as "180-day extension" /
+    # "status extension" and the 10-term query dropped the real limit.
+    (
+        re.compile(r"\b180[- ]days?\b", re.I),
+        ["180-day extension", "status extension"],
+    ),
     (re.compile(r"\bconsular|visa\s+stamp|abroad", re.I), ["consular processing", "visa stamp"]),
     (
         re.compile(r"\b(opt\b|stem\s+opt|cpt\b|practical\s+training|sevis|i-983)", re.I),
