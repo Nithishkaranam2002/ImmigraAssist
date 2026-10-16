@@ -55,7 +55,15 @@ TOPIC_PHRASES: list[tuple[re.Pattern, list[str]]] = [
     (re.compile(r"\bdeport|removal|cancellation", re.I), ["deportation", "removal", "cancellation"]),
     (re.compile(r"\bcompare|versus|vs\.?\b", re.I), ["comparison", "visa category"]),
     (re.compile(r"\b180[- ]day|extension", re.I), ["180-day extension", "status extension"]),
-    (re.compile(r"\bconsular|visa\s+stamp|abroad", re.I), ["consular processing", "visa stamp"]),
+    # Travel or residence "abroad" is not consular processing. The ungrouped
+    # "|" made bare "abroad" its own alternative, so pending-extension travel,
+    # advance-parole travel, study abroad, and LPR abandonment were prefixed
+    # with "consular processing" / "visa stamp". Those two phrases filled the
+    # 10-term query and dropped the real facts ("stay" / "pending", "semester").
+    (
+        re.compile(r"\bconsular\b|\bvisa\s+stamp\b", re.I),
+        ["consular processing", "visa stamp"],
+    ),
     (
         re.compile(r"\b(opt\b|stem\s+opt|cpt\b|practical\s+training|sevis|i-983)", re.I),
         ["STEM OPT", "OPT extension", "F-1 student", "Form I-983"],
