@@ -54,7 +54,18 @@ TOPIC_PHRASES: list[tuple[re.Pattern, list[str]]] = [
     (re.compile(r"\bnaturalization|citizenship|n-400", re.I), ["naturalization", "citizenship"]),
     (re.compile(r"\bdeport|removal|cancellation", re.I), ["deportation", "removal", "cancellation"]),
     (re.compile(r"\bcompare|versus|vs\.?\b", re.I), ["comparison", "visa category"]),
-    (re.compile(r"\b180[- ]day|extension", re.I), ["180-day extension", "status extension"]),
+    # A 180-day period is not the 180-day automatic extension of status or EAD.
+    # The ungrouped "|" also made bare "extension" its own alternative. Either
+    # hit prepended "180-day extension" / "status extension". On a three-year
+    # bar question those two phrases filled the 10-term query and dropped "bar".
+    # Keep the phrases only when 180 days is itself the extension.
+    (
+        re.compile(
+            r"\b180[- ]days?\s+(?:automatic\s+)?extensions?\b",
+            re.I,
+        ),
+        ["180-day extension", "status extension"],
+    ),
     (re.compile(r"\bconsular|visa\s+stamp|abroad", re.I), ["consular processing", "visa stamp"]),
     (
         re.compile(r"\b(opt\b|stem\s+opt|cpt\b|practical\s+training|sevis|i-983)", re.I),
