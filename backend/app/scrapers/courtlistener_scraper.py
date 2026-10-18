@@ -52,7 +52,11 @@ TOPIC_PHRASES: list[tuple[re.Pattern, list[str]]] = [
     (re.compile(r"\beligib|qualif|require", re.I), ["eligibility", "requirements"]),
     (re.compile(r"\bdeni", re.I), ["denial", "denied", "appeal"]),
     (re.compile(r"\bnaturalization|citizenship|n-400", re.I), ["naturalization", "citizenship"]),
-    (re.compile(r"\bdeport|removal|cancellation", re.I), ["deportation", "removal", "cancellation"]),
+    # Bare "cancellation" is INA 222(g) visa voidance or withdrawal of a
+    # petition, not cancellation of removal. A bare alternative injected
+    # deportation and removal ahead of the user's words. "cancellation of
+    # removal" still matches the "removal" alternative.
+    (re.compile(r"\bdeport|removal", re.I), ["deportation", "removal", "cancellation"]),
     (re.compile(r"\bcompare|versus|vs\.?\b", re.I), ["comparison", "visa category"]),
     (re.compile(r"\b180[- ]day|extension", re.I), ["180-day extension", "status extension"]),
     (re.compile(r"\bconsular|visa\s+stamp|abroad", re.I), ["consular processing", "visa stamp"]),
