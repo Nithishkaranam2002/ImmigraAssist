@@ -46,6 +46,21 @@ IMMIGRATION_TOPIC_PATTERNS = [
     re.compile(r"\b(adjustment\s+of\s+status|consular\s+processing)", re.I),
     re.compile(r"\b(i-140|i-485|i-765|i-129|i-539|i-20|i-94)\b", re.I),
     re.compile(r"\b(h[-\s]?1b|h[-\s]?4|l[-\s]?1|o[-\s]?1|eb[-\s]?[12]|f[-\s]?1)\b", re.I),
+    # Subclass letters and categories the patterns above miss. A trailing
+    # word boundary rejects O-1A, EB-1A/B/C, and H-1B1.
+    re.compile(
+        r"\b("
+        r"eb[-\s]?[345]|eb[-\s]?1[abc]|o[-\s]?1[ab]|"
+        r"h[-\s]?1b1|h[-\s]?2[ab]|"
+        r"national\s+interest\s+waivers?|extraordinary\s+ability|"
+        r"immigrant\s+investors?|regional\s+centers?|"
+        r"specialized\s+knowledge|intracompany\s+transferees?|"
+        r"religious\s+workers?|other\s+worker\s+subcategor(?:y|ies)|"
+        r"labor\s+attestation|labor\s+condition\s+applications?|"
+        r"prevailing\s+wages?|specialty\s+occupations?"
+        r")\b",
+        re.I,
+    ),
 ]
 
 # normalize hyphenated visa codes so "H-1B" matches keyword "h1b"
@@ -109,7 +124,13 @@ class ContentModerator:
         score = 0
         for kw in IMMIGRATION_KEYWORDS:
             if len(kw) <= 4:
-                if re.search(rf"\b{re.escape(kw)}\b", normalized):
+                # "visas" is the same scope signal as "visa". Do not pluralize
+                # generic short keywords such as form/case/law.
+                if kw == "visa":
+                    matched = re.search(r"\bvisas?\b", normalized)
+                else:
+                    matched = re.search(rf"\b{re.escape(kw)}\b", normalized)
+                if matched:
                     score += 1
             elif kw in normalized:
                 score += 1
