@@ -46,6 +46,25 @@ IMMIGRATION_TOPIC_PATTERNS = [
     re.compile(r"\b(adjustment\s+of\s+status|consular\s+processing)", re.I),
     re.compile(r"\b(i-140|i-485|i-765|i-129|i-539|i-20|i-94)\b", re.I),
     re.compile(r"\b(h[-\s]?1b|h[-\s]?4|l[-\s]?1|o[-\s]?1|eb[-\s]?[12]|f[-\s]?1)\b", re.I),
+    # Asylum and protection doctrines are core immigration research even when
+    # the question never says "asylum", "visa", or "removal". Keep the
+    # continuations narrow so audit "material support", a one-year bar exam,
+    # and a factory "safe third country" stay out of scope.
+    re.compile(
+        r"\b("
+        r"credible\s+fear|reasonable\s+fear|well[-\s]founded\s+fear|"
+        r"convention\s+against\s+torture|"
+        r"past\s+persecution|persecutor\s+bars?|"
+        r"one[-\s]year\s+bars?(?!\s+exam\b)|"
+        r"particularly\s+serious\s+crimes?|"
+        r"aggravated\s+felon(?:y|ies)|"
+        r"particular\s+social\s+groups?|"
+        r"safe\s+third\s+countr(?:y|ies)\s+(?:agreements?|exceptions?|bars?|rules?|provisions?|principles?|polic(?:y|ies)|doctrines?)|"
+        r"material\s+support\s+(?:bars?|grounds?|alone|itself|enough|a\s+bar|"
+        r"to\s+(?:a|an)\b|of\s+(?:a|an)\b|for\s+(?:a|an|terrorism)\b)"
+        r")\b",
+        re.I,
+    ),
 ]
 
 # normalize hyphenated visa codes so "H-1B" matches keyword "h1b"
