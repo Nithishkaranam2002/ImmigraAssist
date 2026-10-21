@@ -46,6 +46,31 @@ IMMIGRATION_TOPIC_PATTERNS = [
     re.compile(r"\b(adjustment\s+of\s+status|consular\s+processing)", re.I),
     re.compile(r"\b(i-140|i-485|i-765|i-129|i-539|i-20|i-94)\b", re.I),
     re.compile(r"\b(h[-\s]?1b|h[-\s]?4|l[-\s]?1|o[-\s]?1|eb[-\s]?[12]|f[-\s]?1)\b", re.I),
+    # J-1 212(e), INA 245(i), and derivative aging-out are core immigration
+    # research even when the question never says visa, status, petition,
+    # beneficiary, or priority date. Keep the continuations narrow so a home
+    # warranty, a pricing grandfather clause, a lease paragraph, a tax-code
+    # citation, a like-kind exchange, and a pediatric "age out" stay out.
+    re.compile(
+        r"(?:"
+        r"\b(?:two|2)[-\s]years?\s+(?:home\s+(?:residency|residence)|foreign\s+residence)\s+requirements?\b"
+        r"|\bhome\s+residency\s+requirements?\b"
+        r"|\bforeign\s+residence\s+requirements?\s+for\s+exchange\b"
+        r"|(?=.*\b212\s*\(\s*e\s*\))(?=.*\bexchange\s+(?:visitors?|programs?)\b)"
+        r"|\b245\s*\(\s*i\s*\)(?!\s+of\s+the\s+(?:lease|tax)\b)"
+        r")",
+        re.I | re.S,
+    ),
+    re.compile(
+        r"(?:"
+        r"(?=.*\bderivative\s+child(?:ren)?\b)(?=.*\b(?:ag(?:e|es|ed)\s+out|aging[-\s]out)\b)"
+        r"|"
+        r"(?=.*\b(?:child|children|sons?|daughters?)\b)"
+        r"(?=.*\b(?:ag(?:e|es|ed)\s+out|aging[-\s]out)\b)"
+        r"(?=.*\b(?:preferences?|immigrat\w*|backlogs?)\b)"
+        r")",
+        re.I | re.S,
+    ),
 ]
 
 # normalize hyphenated visa codes so "H-1B" matches keyword "h1b"
