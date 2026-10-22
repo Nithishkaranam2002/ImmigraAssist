@@ -46,6 +46,58 @@ IMMIGRATION_TOPIC_PATTERNS = [
     re.compile(r"\b(adjustment\s+of\s+status|consular\s+processing)", re.I),
     re.compile(r"\b(i-140|i-485|i-765|i-129|i-539|i-20|i-94)\b", re.I),
     re.compile(r"\b(h[-\s]?1b|h[-\s]?4|l[-\s]?1|o[-\s]?1|eb[-\s]?[12]|f[-\s]?1)\b", re.I),
+    # Residence maintenance and family-category questions are core immigration
+    # research even when they never say visa, status, petition, or beneficiary.
+    # Keep each continuation narrow so property-tax "lawful permanent residence",
+    # botanical "naturalize", a prenup, Schedule K-1, economic retrogression,
+    # a lease/tax "245(k)", and "Conrad 30 minutes" stay out of scope.
+    re.compile(
+        r"(?:"
+        r"(?=.*\babandon(?:ment|s|ed|ing)?\b)(?=.*\blawful\s+permanent\s+residenc(?:e|y)\b)"
+        r"|"
+        r"(?=.*\babandon(?:ment|s|ed|ing)?\b)(?=.*\bpermanent\s+residents?\b)"
+        r"(?=.*\b(?:abroad|overseas|trips?|travel)\b)"
+        r"|"
+        r"\A(?!.*\b(?:plants?|species|habitats?|gardens?)\b)"
+        r"(?=.*\bnaturaliz(?:e|es|ed|ing)\b)"
+        r"(?=.*\b(?:physical\s+presence|continuous\s+residence|oath\s+of\s+allegiance|"
+        r"english\s+and\s+civics|civics\s+tests?|permanent\s+residents?|n[-\s]?470)\b)"
+        r"|"
+        r"\bimmediate\s+relatives?\s+of\s+(?:a|an)\s+"
+        r"(?:(?:u\.?s\.?|united\s+states)\s+)?citizens?\b"
+        r"|"
+        r"(?=.*\bimmediate\s+relatives?\b)(?=.*\bcategory\s+unlimited\b)"
+        r"|"
+        r"(?=.*\bimmediate\s+relatives?\b)(?=.*\bpreference\s+categor(?:y|ies)\b)"
+        r"|"
+        r"(?=.*\bfianc[eé]e?s?\b)(?=.*\b(?:90|ninety)[-\s]?days?\b)"
+        r"(?=.*\b(?:marriage|admissions?)\b)(?=.*\bports?\b)"
+        r"|"
+        r"\A(?!.*\bschedule\s+k[-\s]?1\b)"
+        r"(?=.*\bk[-\s]?1\b)(?=.*\b(?:90|ninety)[-\s]?days?\b)"
+        r"(?=.*\b(?:marriage|admissions?|port\s+of\s+entry)\b)"
+        r"|"
+        r"\A(?!.*\b(?:economic|consumer)\b)"
+        r"(?=.*\bretrogress(?:ion|ed|es|ing)?\b)"
+        r"(?=.*\bpreference\s+categor(?:y|ies)\b)"
+        r"(?=.*\b(?:waiting|backlogs?)\b)"
+        r"|"
+        r"\b(?:employment|family)[-\s]based\s+preference\s+numbers?\b"
+        r"|"
+        r"(?=.*\bno[-\s]objection\b)(?=.*\bphysical\s+presence\s+requirements?\b)"
+        r"|"
+        r"\b245\s*\(\s*k\s*\)(?!\s+of\s+the\s+(?:lease|tax)\b)"
+        r"|"
+        r"\bconrad\s+30\b(?!\s*(?:minutes?|seconds?|hours?|dollars?|percent|%))"
+        r"|"
+        r"\bcross[-\s]chargeability\b"
+        r"|"
+        r"(?=.*\bper[-\s]country\s+limits?\b)(?=.*\bimmigrants?\b)"
+        r"|"
+        r"(?=.*\bfollow[-\s]to[-\s]join\b)(?=.*\b(?:derivatives?|i[-\s]?730|principals?)\b)"
+        r")",
+        re.I | re.S,
+    ),
 ]
 
 # normalize hyphenated visa codes so "H-1B" matches keyword "h1b"
