@@ -46,6 +46,26 @@ IMMIGRATION_TOPIC_PATTERNS = [
     re.compile(r"\b(adjustment\s+of\s+status|consular\s+processing)", re.I),
     re.compile(r"\b(i-140|i-485|i-765|i-129|i-539|i-20|i-94)\b", re.I),
     re.compile(r"\b(h[-\s]?1b|h[-\s]?4|l[-\s]?1|o[-\s]?1|eb[-\s]?[12]|f[-\s]?1)\b", re.I),
+    # E-1 treaty trader and E-2 treaty investor questions are core nonimmigrant
+    # research even when they never say "visa" or "status". Bare E-2, a column
+    # labeled E-2, an E-2 investor meeting, tax-treaty investors, and
+    # investor-state arbitration stay out of scope.
+    re.compile(
+        r"(?:"
+        r"\be[-\s]?2\s+treaty[-\s]+investors?\b"
+        r"|\be[-\s]?1\s+treaty[-\s]+traders?\b"
+        r"|\be[-\s]?2\s+substantiality\b"
+        r"|(?=.*\bmarginality\b)(?=.*\be[-\s]?2\s+enterprises?\b)"
+        r"|(?=.*\be[-\s]?2\s+investors?\b)"
+        r"(?=.*\b(?:requirements?|investments?|capital|nationals?|at\s+risk|ownership)\b)"
+        r"|\A(?!.*\b(?:tax|withholding|dividends?|irs|furs?|colonial|frontier)\b)"
+        r"(?=.*\btreaty[-\s]+traders?\b)"
+        r"|\A(?!.*\b(?:tax|withholding|dividends?|irs|arbitration|icsid|expropriat\w*|host\s+state)\b)"
+        r"(?=.*\btreaty[-\s]+investors?\b)"
+        r"(?=.*\b(?:at\s+risk|nationalit(?:y|ies)|develop\s+and\s+direct|marginality|substantiality)\b)"
+        r")",
+        re.I,
+    ),
 ]
 
 # normalize hyphenated visa codes so "H-1B" matches keyword "h1b"
