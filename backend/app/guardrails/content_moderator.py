@@ -46,6 +46,49 @@ IMMIGRATION_TOPIC_PATTERNS = [
     re.compile(r"\b(adjustment\s+of\s+status|consular\s+processing)", re.I),
     re.compile(r"\b(i-140|i-485|i-765|i-129|i-539|i-20|i-94)\b", re.I),
     re.compile(r"\b(h[-\s]?1b|h[-\s]?4|l[-\s]?1|o[-\s]?1|eb[-\s]?[12]|f[-\s]?1)\b", re.I),
+    # Removal-relief and country-specific statutes are core immigration research
+    # even when the question never says visa, status, removal, or asylum.
+    # Keep each continuation narrow so a farmer's "extremely unusual hardship",
+    # deferred action, a company voluntary-departure program, a park or stadium
+    # reentry permit, California SB-1, a tax returning resident, and a criminal
+    # in-absentia conviction stay out of scope.
+    re.compile(
+        r"(?:"
+        r"\bdeferred[-\s]+enforced[-\s]+departure\b"
+        r"|"
+        r"\bexceptional\s+and\s+extremely\s+unusual\s+hardship\b"
+        r"|"
+        r"\bCuban\s+Adjustment\s+Act\b"
+        r"|"
+        r"\bNicaraguan\s+Adjustment\s+and\s+Central\s+American\s+Relief\s+Act\b"
+        r"|"
+        r"\bNACARA\b"
+        r"|"
+        r"\bHRIFA\b"
+        r"|"
+        r"\bIIRIRA\b"
+        r"|"
+        r"\bnon[-\s]?lprs?\b"
+        r"|"
+        r"\A(?!.*\b(?:convict(?:ed|ion|ions)|criminal|guilty|defendants?|"
+        r"sentences?|sentencing|accused|indictments?|verdicts?)\b)"
+        r"(?=.*\bmotion\s+to\s+reopen\b)(?=.*\bin\s+absentia\b)"
+        r"|"
+        r"\A(?!.*\b(?:convict(?:ed|ion|ions)|criminal|guilty|defendants?|"
+        r"sentences?|sentencing|accused|indictments?|verdicts?)\b)"
+        r"(?=.*\b(?:rescind(?:ed|ing|s)?|rescission)\b)(?=.*\bin\s+absentia\b)"
+        r"|"
+        r"\A(?!.*\b(?:compan(?:y|ies)|layoffs?|retiring|retirees?|retirement|"
+        r"severance|incentives?|restructuring|staff)\b)"
+        r"(?=.*\bvoluntary\s+departure\b)"
+        r"|"
+        r"\A(?!.*\b(?:parks?|stadiums?|venues?|festivals?|concerts?)\b)"
+        r"(?=.*\bre[-\s]?entry\s+permits?\b)"
+        r"|"
+        r"(?=.*\bSB[-\s]?1\b)(?=.*\breturning\s+residents?\b)"
+        r")",
+        re.I | re.S,
+    ),
 ]
 
 # normalize hyphenated visa codes so "H-1B" matches keyword "h1b"
