@@ -46,6 +46,48 @@ IMMIGRATION_TOPIC_PATTERNS = [
     re.compile(r"\b(adjustment\s+of\s+status|consular\s+processing)", re.I),
     re.compile(r"\b(i-140|i-485|i-765|i-129|i-539|i-20|i-94)\b", re.I),
     re.compile(r"\b(h[-\s]?1b|h[-\s]?4|l[-\s]?1|o[-\s]?1|eb[-\s]?[12]|f[-\s]?1)\b", re.I),
+    # Protection acronyms, J-1 no-objection statements, CSPA age-freeze,
+    # bulletin cutoff retrogression, lack-of-notice in absentia orders, the
+    # naturalization English test, and K-1 fiance questions are core
+    # immigration research even when they never say visa, status, asylum, or
+    # removal. Keep each continuation narrow so a vet or CAT-scan deferral, a
+    # property no-objection certificate, a landlord letter, linguistic
+    # loanwords, school-lunch CSPA, economic retrogression, a criminal or
+    # company in-absentia order, and Schedule K-1 stay out of scope.
+    re.compile(
+        r"(?:"
+        r"\A(?!.*\b(?:vets?|veterinary|pets?|shelters?|animals?|scans?|radiology|imaging)\b)"
+        r"(?!.*\bcat\s+exams?\b)"
+        r"(?=.*\b(?:torture|fears?|protection)\b)"
+        r"(?=.*(?:\bcat\s+deferrals?\b|\bdeferrals?\s+under\s+(?:the\s+)?cat\b))"
+        r"|\bwithholding\s+under\s+(?:the\s+)?cat\b(?!\s+exam\b)"
+        r"|\bmigrant\s+protection\s+protocols?\b"
+        r"|\bremain[-\s]in[-\s]mexico\b"
+        r"|\bchanged\s+country\s+conditions\b"
+        r"|\bno[-\s]objection\s+statements?\b"
+        r"|(?=.*\bno[-\s]objection\s+letters?\b)(?=.*\b(?:waivers?|home\s+countr(?:y|ies))\b)"
+        r"|\A(?!.*\b(?:loanwords?|linguistic|linguistics|vocabulary|pronunciation)\b)"
+        r"(?=.*\bnaturaliz(?:e|es|ed|ing)\b)"
+        r"(?=.*\benglish\b)"
+        r"(?=.*\b(?:tests?|language|exams?|exempt|exemptions?)\b)"
+        r"|\A(?!.*\b(?:lunch|cafeteria|tuition|enrollment|personnel)\b)"
+        r"(?=.*\bcspa\b)"
+        r"(?=.*\b(?:freez(?:e|es|ed|ing)|frozen)\b)"
+        r"(?=.*\b(?:ages?|child|children)\b)"
+        r"|\A(?!.*\b(?:economic|consumer)\b)"
+        r"(?=.*\bretrogress(?:ion|ed|es|ing)?\b)"
+        r"(?=.*\bcutoffs?\b)"
+        r"(?=.*\b(?:preferences?|bulletins?|categor(?:y|ies)|chargeability|immigrants?)\b)"
+        r"|\A(?!.*\b(?:convict(?:ed|ion|ions)|criminal|guilty|defendants?|"
+        r"sentences?|sentencing|accused|indictments?|verdicts?|compan(?:y|ies))\b)"
+        r"(?=.*\bin\s+absentia\s+orders?\b)"
+        r"(?=.*\bnotice\b)"
+        r"(?=.*\b(?:received|receipt|served)\b)"
+        r"|\A(?!.*\bschedule\s+k[-\s]?1\b)"
+        r"(?=.*\bk[-\s]?1\b)(?=.*\bfianc[eé]e?s?\b)"
+        r")",
+        re.I | re.S,
+    ),
 ]
 
 # normalize hyphenated visa codes so "H-1B" matches keyword "h1b"
