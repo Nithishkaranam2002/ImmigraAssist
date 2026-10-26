@@ -46,6 +46,49 @@ IMMIGRATION_TOPIC_PATTERNS = [
     re.compile(r"\b(adjustment\s+of\s+status|consular\s+processing)", re.I),
     re.compile(r"\b(i-140|i-485|i-765|i-129|i-539|i-20|i-94)\b", re.I),
     re.compile(r"\b(h[-\s]?1b|h[-\s]?4|l[-\s]?1|o[-\s]?1|eb[-\s]?[12]|f[-\s]?1)\b", re.I),
+    # USCIS notices of intent to deny and requests for evidence are core
+    # adjudication research even when the question never says visa, case, form,
+    # denial, or filing. Keep each continuation narrow so an SSA, insurance,
+    # credit, or workers-comp NOID, and a discovery, trial, or academic
+    # "request for evidence", stay out of scope.
+    re.compile(
+        r"(?:"
+        r"\A(?!.*\b(?:disabilit(?:y|ies)|social\s+security|ssa|insurers?|insurance|"
+        r"underwriters?|medicare|medicaid|credit)\b)"
+        r"(?!.*\bworker(?:s|'s)?\s+comp)"
+        r"(?!.*\bclaims?\b.*\b(?:coverage|carriers?|premiums?|benefits?)\b)"
+        r"(?!.*\b(?:coverage|carriers?|premiums?|benefits?)\b.*\bclaims?\b)"
+        r"(?=.*\bnotice[-\s]+of[-\s]+intent[-\s]+to[-\s]+deny\b)"
+        r"|"
+        r"\A(?!.*\b(?:disabilit(?:y|ies)|social\s+security|ssa|insurers?|insurance|"
+        r"underwriters?|medicare|medicaid|credit)\b)"
+        r"(?!.*\bworker(?:s|'s)?\s+comp)"
+        r"(?!.*\bclaims?\b.*\b(?:coverage|carriers?|premiums?|benefits?)\b)"
+        r"(?!.*\b(?:coverage|carriers?|premiums?|benefits?)\b.*\bclaims?\b)"
+        r"(?!.*\b(?:puzzles?|trivia|catalogs?|catalogues?|riddles?|quizzes|quiz|"
+        r"crosswords?)\b)"
+        r"(?=.*\bnoids?\b)"
+        r"(?=.*\b(?:respond|response|responses|reply|replies|deadline|rebut|"
+        r"rebuttal|unanswered|answer|answers)\b)"
+        r"|"
+        r"\A(?!.*\b(?:discover(?:y|ies)|depositions?|subpoenas?|plaintiffs?|"
+        r"defendants?|compel|interrogatories|exhibits?|litigation|trials?|"
+        r"hypothesis|hypotheses|journals?|publications?|experiments?|brady|"
+        r"prosecutors?)\b)"
+        r"(?=.*\brequests?[-\s]+for[-\s]+evidence\b)"
+        r"|"
+        r"\A(?!.*\b(?:discover(?:y|ies)|depositions?|subpoenas?|plaintiffs?|"
+        r"defendants?|compel|interrogatories|exhibits?|litigation|trials?|"
+        r"hypothesis|hypotheses|journals?|publications?|experiments?|brady|"
+        r"prosecutors?|radio|broadcast(?:ing|ers?)?)\b)"
+        r"(?!.*\b(?:puzzles?|trivia|catalogs?|catalogues?|riddles?|quizzes|quiz|"
+        r"crosswords?)\b)"
+        r"(?=.*\brfes?\b)"
+        r"(?=.*\b(?:respond|response|responses|reply|replies|deadline|rebut|"
+        r"rebuttal|unanswered|answer|answers)\b)"
+        r")",
+        re.I | re.S,
+    ),
 ]
 
 # normalize hyphenated visa codes so "H-1B" matches keyword "h1b"
