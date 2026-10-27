@@ -38,6 +38,28 @@ IMMIGRATION_KEYWORDS = [
     "stem degree", "grace period",
 ]
 
+# Licensing boards, DMVs, the IRS, insurers, and criminal-supervision
+# agencies also say "notice of intent to revoke". These stay out of scope.
+_NOIR_SCOPE_GUARDS = (
+    r"licen[cs]es?|licen[cs]ed|licen[cs]ing|certificates?|certifications?|"
+    r"credentials?|probation(?:ers?)?|parole|bail|passports?|clearances?|"
+    r"scholarships?|accreditations?|memberships?|charters?|permits?|grants?|"
+    r"contracts?|patents?|trademarks?|copyrights?|acceptance|warrant(?:y|ies)|"
+    r"drivers?|driving|dmv|vehicles?|traffic|leases?|landlords?|"
+    r"tenanc(?:y|ies)|tenants?|admissions?|universit(?:y|ies)|colleges?|"
+    r"campus|enrollments?|enrolments?|tuition|diplomas?|registrars?|"
+    r"privileges?|hospitals?|clinics?|tax|exempt|exemptions?|irs|501|"
+    r"non[-\s]?profits?|charit(?:y|ies|able)|disabilit(?:y|ies)|"
+    r"social\s+security|ssa|insurers?|insurance|underwriters?|medicare|"
+    r"medicaid|coverage|carriers?|premiums?"
+)
+
+# Film noir, pinot noir, and catalog trivia use the letters NOIR.
+_NOIR_ACRONYM_GUARDS = (
+    r"puzzles?|trivia|catalogs?|catalogues?|riddles?|quiz(?:zes)?|"
+    r"crosswords?|films?|movies?|cinema|pinot|wines?|genres?"
+)
+
 # Topic patterns that are clearly immigration even without keyword hits
 IMMIGRATION_TOPIC_PATTERNS = [
     re.compile(r"\b(opt\b|stem\s+opt|cpt\b|curricular\s+practical)", re.I),
@@ -46,6 +68,25 @@ IMMIGRATION_TOPIC_PATTERNS = [
     re.compile(r"\b(adjustment\s+of\s+status|consular\s+processing)", re.I),
     re.compile(r"\b(i-140|i-485|i-765|i-129|i-539|i-20|i-94)\b", re.I),
     re.compile(r"\b(h[-\s]?1b|h[-\s]?4|l[-\s]?1|o[-\s]?1|eb[-\s]?[12]|f[-\s]?1)\b", re.I),
+    # USCIS notices of intent to revoke (NOIR) are core adjudication research
+    # even when the question never says visa, petition, approval, or case.
+    # The full phrase is enough. The acronym also needs a response collocate,
+    # and it is case-sensitive so film noir and pinot noir stay out.
+    re.compile(
+        rf"(?:"
+        rf"\A(?!.*\b(?:{_NOIR_SCOPE_GUARDS})\b)"
+        rf"(?!.*\bworker(?:s'?|'s)?\s+comp)"
+        rf"(?=.*\bnotices?[-\s]+of[-\s]+intent[-\s]+to[-\s]+revoke\b)"
+        rf"|"
+        rf"\A(?!.*\b(?:{_NOIR_SCOPE_GUARDS})\b)"
+        rf"(?!.*\bworker(?:s'?|'s)?\s+comp)"
+        rf"(?!.*\b(?:{_NOIR_ACRONYM_GUARDS})\b)"
+        rf"(?=.*(?-i:\bNOIRs?\b))"
+        rf"(?=.*\b(?:respond|response|responses|reply|replies|deadline|rebut|"
+        rf"rebuttal|unanswered|answer|answers)\b)"
+        rf")",
+        re.I | re.S,
+    ),
 ]
 
 # normalize hyphenated visa codes so "H-1B" matches keyword "h1b"
