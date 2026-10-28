@@ -38,6 +38,31 @@ IMMIGRATION_KEYWORDS = [
     "stem degree", "grace period",
 ]
 
+# Traffic courts, civil suits, and schools also issue a "notice to appear".
+# These stay out of scope. A felony listed on the charging document does not.
+_NTA_SCOPE_GUARDS = (
+    r"traffics?|tickets?|citations?|speeding|parking|jur(?:y|ies|or|ors)|"
+    r"depositions?|subpoenas?|plaintiffs?|lawsuits?|truancy|schools?|"
+    r"hoas?|dmv|drivers?|driving|vehicles?|ordinances?|"
+    r"municipalit(?:y|ies)|municipals?|landlords?|summons(?:es)?|"
+    r"arraignments?|defendants?"
+)
+
+# Catalog trivia and surveys also use the letters NTA.
+_NTA_ACRONYM_GUARDS = (
+    r"puzzles?|trivia|catalogs?|catalogues?|riddles?|quiz(?:zes)?|"
+    r"crosswords?|films?|movies?|cinema|surveys?|questionnaires?|polls?"
+)
+
+# Criminal courts, child-welfare agencies, and hospitals also issue an
+# "order of supervision". These stay out of scope.
+_OS_SCOPE_GUARDS = (
+    r"illinois|probation(?:ers?)?|parolee?s?|bail|defendants?|"
+    r"misdemeanou?rs?|felon(?:y|ies)|pleas?|sentenc(?:e|es|ed|ing)|"
+    r"diversions?|dismiss(?:ed|als?|ing)?|traffics?|tickets?|"
+    r"hospitals?|clinics?|physicians?|fosters?"
+)
+
 # Topic patterns that are clearly immigration even without keyword hits
 IMMIGRATION_TOPIC_PATTERNS = [
     re.compile(r"\b(opt\b|stem\s+opt|cpt\b|curricular\s+practical)", re.I),
@@ -46,6 +71,36 @@ IMMIGRATION_TOPIC_PATTERNS = [
     re.compile(r"\b(adjustment\s+of\s+status|consular\s+processing)", re.I),
     re.compile(r"\b(i-140|i-485|i-765|i-129|i-539|i-20|i-94)\b", re.I),
     re.compile(r"\b(h[-\s]?1b|h[-\s]?4|l[-\s]?1|o[-\s]?1|eb[-\s]?[12]|f[-\s]?1)\b", re.I),
+    # A Notice to Appear is the charging document that starts removal
+    # proceedings, and an Order of Supervision is the release condition that
+    # requires periodic reporting. Questions often omit visa, hearing, court,
+    # removal, and case. The full phrases are enough. NTA also needs a
+    # charge, allegation, or respondent collocate, and it is case-sensitive.
+    # Bare NTA and traffic or civil notices stay out. Probation, sentencing,
+    # and hospital orders of supervision stay out. A criminal conviction
+    # alone does not.
+    re.compile(
+        rf"(?:"
+        rf"\A(?!.*\b(?:{_NTA_SCOPE_GUARDS})\b)"
+        rf"(?!.*\bsmall[-\s]+claims\b)"
+        rf"(?!.*\bcode[-\s]+enforcement\b)"
+        rf"(?=.*\bnotices?[-\s]+to[-\s]+appear\b)"
+        rf"|"
+        rf"\A(?!.*\b(?:{_NTA_SCOPE_GUARDS})\b)"
+        rf"(?!.*\bsmall[-\s]+claims\b)"
+        rf"(?!.*\bcode[-\s]+enforcement\b)"
+        rf"(?!.*\b(?:{_NTA_ACRONYM_GUARDS})\b)"
+        rf"(?=.*(?-i:\bNTAs?\b))"
+        rf"(?=.*\b(?:charges?|allegations?|respondents?)\b)"
+        rf"|"
+        rf"\A(?!.*\b(?:{_OS_SCOPE_GUARDS})\b)"
+        rf"(?!.*\bchild[-\s]+protective\b)"
+        rf"(?!.*\bmedical[-\s]+residency\b)"
+        rf"(?!.*\bcps\b)"
+        rf"(?=.*\borders?[-\s]+of[-\s]+supervision\b)"
+        rf")",
+        re.I | re.S,
+    ),
 ]
 
 # normalize hyphenated visa codes so "H-1B" matches keyword "h1b"
