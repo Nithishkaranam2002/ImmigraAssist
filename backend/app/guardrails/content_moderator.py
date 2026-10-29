@@ -38,6 +38,37 @@ IMMIGRATION_KEYWORDS = [
     "stem degree", "grace period",
 ]
 
+# Contracts, lenders, insurers, licensing boards, schools, and consumer
+# statutes also say "notice of intent to rescind". These stay out of scope.
+# Bare "grant", "offer", "title", "good", "will", and "security" do not,
+# because those words also appear in rescission questions that are in scope.
+_NOITR_SCOPE_GUARDS = (
+    r"licen[cs]es?|licen[cs]ed|licen[cs]ing|certificates?|certifications?|"
+    r"credentials?|passports?|clearances?|scholarships?|accreditations?|accredited|"
+    r"memberships?|charters?|permits?|patents?|trademarks?|copyrights?|"
+    r"contracts?|agreements?|sales?|purchases?|bargains?|goods|"
+    r"warrant(?:y|ies)|refunds?|subscriptions?|timeshares?|"
+    r"mortgages?|loans?|refinanc(?:e|es|ed|ing)|lenders?|borrowers?|"
+    r"credit|lending|deeds?|escrows?|closings?|tila|propert(?:y|ies)|"
+    r"foreclosures?|vehicles?|dealers?|cars?|automobiles?|"
+    r"drivers?|driving|dmv|privileges?|leases?|landlords?|"
+    r"tenanc(?:y|ies)|tenants?|admissions?|universit(?:y|ies)|colleges?|"
+    r"campus|enrollments?|enrolments?|tuition|diplomas?|degrees?|registrars?|"
+    r"employments?|hiring|tax|exempt|exemptions?|irs|501|"
+    r"non[-\s]?profits?|not[-\s]+for[-\s]+profits?|charit(?:y|ies|able)|"
+    r"insurers?|insurance|insureds?|underwriters?|medicare|medicaid|"
+    r"coverage|carriers?|premiums?|disabilit(?:y|ies)|ssa|"
+    r"probation(?:ers?)?|parolee?s?|bail|settlements?|divorces?|"
+    r"offerings?|issuers?|securities|gifts?|donations?|bequests?|testaments?|"
+    r"clubs?|hoas?|hospitals?|clinics?|physicians?|"
+    r"social\s+security|real[-\s]+estates?|truth[-\s]+in[-\s]+lending|"
+    r"cooling[-\s]+off|three[-\s]+days?|3[-\s]*days?|job[-\s]+offers?|"
+    r"last[-\s]+wills?|homeowners?(?:'s)?[-\s]+associations?|"
+    r"title[-\s]+compan(?:y|ies)|title[-\s]+insurance|"
+    r"acceptance[-\s]+of[-\s]+(?:the[-\s]+)?goods|research[-\s]+grants?|"
+    r"right[-\s]+to[-\s]+rescind|right[-\s]+of[-\s]+rescission"
+)
+
 # Topic patterns that are clearly immigration even without keyword hits
 IMMIGRATION_TOPIC_PATTERNS = [
     re.compile(r"\b(opt\b|stem\s+opt|cpt\b|curricular\s+practical)", re.I),
@@ -46,6 +77,18 @@ IMMIGRATION_TOPIC_PATTERNS = [
     re.compile(r"\b(adjustment\s+of\s+status|consular\s+processing)", re.I),
     re.compile(r"\b(i-140|i-485|i-765|i-129|i-539|i-20|i-94)\b", re.I),
     re.compile(r"\b(h[-\s]?1b|h[-\s]?4|l[-\s]?1|o[-\s]?1|eb[-\s]?[12]|f[-\s]?1)\b", re.I),
+    # A USCIS Notice of Intent to Rescind challenges approved residence.
+    # Questions often omit visa, status, approval, and case. The full phrase
+    # is enough, including the regulatory spelling "intention", hyphenated
+    # forms, and double spaces. Contract, mortgage, insurance, license, tax,
+    # school, and consumer rescission stay out. Bare rescission stays out.
+    # Notice of intent to revoke is not this phrase.
+    re.compile(
+        rf"\A(?!.*\b(?:{_NOITR_SCOPE_GUARDS})\b)"
+        rf"(?!.*\bworker(?:s'?|'s)?\s+comp)"
+        rf"(?=.*\bnotices?[-\s]+of[-\s]+intent(?:ion)?[-\s]+to[-\s]+rescind\b)",
+        re.I | re.S,
+    ),
 ]
 
 # normalize hyphenated visa codes so "H-1B" matches keyword "h1b"
