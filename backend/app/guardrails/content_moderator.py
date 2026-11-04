@@ -38,6 +38,46 @@ IMMIGRATION_KEYWORDS = [
     "stem degree", "grace period",
 ]
 
+# Licensing boards, DMVs, the IRS, insurers, schools, lenders, and
+# criminal-supervision agencies also say "revocation on notice". These stay
+# out of scope. Bare "grant", "offer", "title", "good", "will", "job",
+# "security", "permit", "degree", "physician", and "admission" do not,
+# because those words also appear in in-scope revocation questions.
+_REVOCATION_ON_NOTICE_GUARDS = (
+    r"licen[cs]es?|licen[cs]ed|licen[cs]ing|certificates?|certifications?|"
+    r"credentials?|passports?|clearances?|scholarships?|accreditations?|accredited|"
+    r"memberships?|charters?|patents?|trademarks?|copyrights?|"
+    r"contracts?|agreements?|sales?|purchases?|bargains?|goods|"
+    r"warrant(?:y|ies)|refunds?|subscriptions?|timeshares?|"
+    r"mortgages?|loans?|refinanc(?:e|es|ed|ing)|lenders?|borrowers?|"
+    r"credits?|lending|deeds?|escrows?|closings?|"
+    r"propert(?:y|ies)|foreclosures?|vehicles?|dealers?|cars?|automobiles?|"
+    r"drivers?|driving|dmv|privileges?|leases?|landlords?|"
+    r"tenanc(?:y|ies)|tenants?|universit(?:y|ies)|colleges?|"
+    r"campus|enrollments?|enrolments?|tuition|diplomas?|registrars?|"
+    r"employments?|hiring|"
+    r"college[-\s]+degrees?|academic[-\s]+degrees?|"
+    r"bachelor(?:'?s)?[-\s]+degrees?|master(?:'?s)?[-\s]+degrees?|"
+    r"doctoral[-\s]+degrees?|"
+    r"college[-\s]+admissions?|university[-\s]+admissions?|"
+    r"building[-\s]+permits?|construction[-\s]+permits?|"
+    r"medical[-\s]+boards?|nursing[-\s]+boards?|state[-\s]+bars?|"
+    r"tax(?:ation|ations)?|irs|501|"
+    r"non[-\s]?profits?|not[-\s]+for[-\s]+profits?|charit(?:y|ies|able)|"
+    r"insurers?|insurance|insureds?|underwriters?|medicare|medicaid|"
+    r"coverage|carriers?|premiums?|disabilit(?:y|ies)|ssa|compensation|"
+    r"probation(?:ers?)?|parolee?s?|paroled|bail|"
+    r"settlements?|divorces?|offerees?|offerors?|ucc|"
+    r"offerings?|issuers?|securities|gifts?|donations?|bequests?|testaments?|"
+    r"clubs?|hoas?|hospitals?|clinics?|"
+    r"social[-\s]+security|real[-\s]+estates?|truth[-\s]+in[-\s]+lending|"
+    r"job[-\s]+offers?|last[-\s]+wills?|"
+    r"homeowners?(?:'s)?[-\s]+associations?|homeowners'[-\s]+associations?|"
+    r"title[-\s]+compan(?:y|ies)|title[-\s]+insurance|"
+    r"acceptance[-\s]+of[-\s]+(?:the[-\s]+)?goods|"
+    r"research[-\s]+grants?|block[-\s]+grants?"
+)
+
 # Topic patterns that are clearly immigration even without keyword hits
 IMMIGRATION_TOPIC_PATTERNS = [
     re.compile(r"\b(opt\b|stem\s+opt|cpt\b|curricular\s+practical)", re.I),
@@ -46,6 +86,18 @@ IMMIGRATION_TOPIC_PATTERNS = [
     re.compile(r"\b(adjustment\s+of\s+status|consular\s+processing)", re.I),
     re.compile(r"\b(i-140|i-485|i-765|i-129|i-539|i-20|i-94)\b", re.I),
     re.compile(r"\b(h[-\s]?1b|h[-\s]?4|l[-\s]?1|o[-\s]?1|eb[-\s]?[12]|f[-\s]?1)\b", re.I),
+    # 8 CFR 205.2 revocation on notice is core petition-revocation research
+    # even when the question never says visa, petition, approval, or case.
+    # The full phrase is enough, including plurals, hyphens, and double
+    # spaces. License, tax, insurance, school, contract, and criminal
+    # supervision stay out. Bare revocation stays out. Notice of intent to
+    # revoke, notice of revocation, and automatic revocation are not this phrase.
+    re.compile(
+        rf"\A(?!.*\b(?:{_REVOCATION_ON_NOTICE_GUARDS})\b)"
+        rf"(?!.*\bworker(?:s'?|'s)?\s+comp\b)"
+        rf"(?=.*\brevocations?[-\s]+on[-\s]+notice\b)",
+        re.I | re.S,
+    ),
 ]
 
 # normalize hyphenated visa codes so "H-1B" matches keyword "h1b"
