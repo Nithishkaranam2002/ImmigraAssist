@@ -38,6 +38,16 @@ IMMIGRATION_KEYWORDS = [
     "stem degree", "grace period",
 ]
 
+# Criminal courts, child-welfare agencies, and hospitals also issue supervision
+# orders. Those collocates stay out of scope when they appear with the
+# immigration acronym. Do not match the two-letter token OS.
+_OSUP_SCOPE_GUARDS = (
+    r"illinois|probation(?:ers?)?|parolee?s?|bail|defendants?|"
+    r"misdemeanou?rs?|felon(?:y|ies)|pleas?|sentenc(?:e|es|ed|ing)|"
+    r"diversions?|dismiss(?:ed|als?|ing)?|traffics?|tickets?|"
+    r"hospitals?|clinics?|physicians?|fosters?"
+)
+
 # Topic patterns that are clearly immigration even without keyword hits
 IMMIGRATION_TOPIC_PATTERNS = [
     re.compile(r"\b(opt\b|stem\s+opt|cpt\b|curricular\s+practical)", re.I),
@@ -46,6 +56,19 @@ IMMIGRATION_TOPIC_PATTERNS = [
     re.compile(r"\b(adjustment\s+of\s+status|consular\s+processing)", re.I),
     re.compile(r"\b(i-140|i-485|i-765|i-129|i-539|i-20|i-94)\b", re.I),
     re.compile(r"\b(h[-\s]?1b|h[-\s]?4|l[-\s]?1|o[-\s]?1|eb[-\s]?[12]|f[-\s]?1)\b", re.I),
+    # OSUP is the acronym for an ICE order of supervision, the release
+    # condition that requires periodic reporting. Questions often omit visa,
+    # hearing, court, removal, and case. The uppercase acronym is enough.
+    # Bare OS, lowercase osup, and probation, sentencing, or hospital
+    # supervision orders stay out. A criminal conviction alone does not.
+    re.compile(
+        rf"\A(?!.*\b(?:{_OSUP_SCOPE_GUARDS})\b)"
+        rf"(?!.*\bchild[-\s]+protective\b)"
+        rf"(?!.*\bmedical[-\s]+residency\b)"
+        rf"(?!.*\bcps\b)"
+        rf"(?=.*(?-i:\bOSUP[sS]?\b))",
+        re.I | re.S,
+    ),
 ]
 
 # normalize hyphenated visa codes so "H-1B" matches keyword "h1b"
