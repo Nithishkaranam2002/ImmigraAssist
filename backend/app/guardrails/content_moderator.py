@@ -46,6 +46,13 @@ IMMIGRATION_TOPIC_PATTERNS = [
     re.compile(r"\b(adjustment\s+of\s+status|consular\s+processing)", re.I),
     re.compile(r"\b(i-140|i-485|i-765|i-129|i-539|i-20|i-94)\b", re.I),
     re.compile(r"\b(h[-\s]?1b|h[-\s]?4|l[-\s]?1|o[-\s]?1|eb[-\s]?[12]|f[-\s]?1)\b", re.I),
+    # Form I-220B is the ICE order of supervision. Questions often cite only
+    # the form number and omit the word form, plus visa, hearing, court,
+    # removal, and case. The hyphenated number, a line break after the
+    # hyphen, the I-220-B spelling, and unhyphenated I220B are enough,
+    # including a plural. A bare I-220, I-220A, and a spaced "I 220 B"
+    # are not this form.
+    re.compile(r"\bI(?:-\n?220-?|220)Bs?\b", re.I),
 ]
 
 # normalize hyphenated visa codes so "H-1B" matches keyword "h1b"
