@@ -38,6 +38,16 @@ IMMIGRATION_KEYWORDS = [
     "stem degree", "grace period",
 ]
 
+# State criminal courts also release people on recognizance. Those
+# collocates stay out of scope. A criminal conviction alone does not.
+_RECOGNIZANCE_SCOPE_GUARDS = (
+    r"illinois|defendants?|bail|probation(?:ers?)?|parolee?s?|paroled|"
+    r"misdemeanou?rs?|felons?|felon(?:y|ies)|pleas?|"
+    r"sentenc(?:e|es|ed|ing)|arraignments?|dockets?|jails?|sheriffs?|"
+    r"diversions?|dismiss(?:ed|als?|ing)?|"
+    r"traffics?|tickets?|citations?"
+)
+
 # Topic patterns that are clearly immigration even without keyword hits
 IMMIGRATION_TOPIC_PATTERNS = [
     re.compile(r"\b(opt\b|stem\s+opt|cpt\b|curricular\s+practical)", re.I),
@@ -46,6 +56,18 @@ IMMIGRATION_TOPIC_PATTERNS = [
     re.compile(r"\b(adjustment\s+of\s+status|consular\s+processing)", re.I),
     re.compile(r"\b(i-140|i-485|i-765|i-129|i-539|i-20|i-94)\b", re.I),
     re.compile(r"\b(h[-\s]?1b|h[-\s]?4|l[-\s]?1|o[-\s]?1|eb[-\s]?[12]|f[-\s]?1)\b", re.I),
+    # Form I-220A is titled "order of release on recognizance". Questions
+    # often use that title and omit the form number, plus visa, hearing,
+    # court, removal, and case. The full title is enough, including a
+    # hyphen, double spaces, a newline, and a plural "orders". Bare
+    # recognizance, "release on recognizance", "order of recognizance",
+    # and "on own recognizance" are not this title. Defendant, bail,
+    # probation, and sentencing orders stay out.
+    re.compile(
+        rf"\A(?!.*\b(?:{_RECOGNIZANCE_SCOPE_GUARDS})\b)"
+        rf"(?=.*\borders?[-\s]+of[-\s]+release[-\s]+on[-\s]+recognizance\b)",
+        re.I | re.S,
+    ),
 ]
 
 # normalize hyphenated visa codes so "H-1B" matches keyword "h1b"
