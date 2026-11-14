@@ -38,6 +38,18 @@ IMMIGRATION_KEYWORDS = [
     "stem degree", "grace period",
 ]
 
+# Evidence rules and medical-apology statutes also talk about
+# inadmissibility. These stay out of scope. Bare "waiver" does not, and
+# neither does a bare "inadmissibility" or "waiver of inadmissibility",
+# because those are different phrases.
+_INADMISSIBILITY_WAIVER_GUARDS = (
+    r"hearsays?|malpractices?|"
+    r"apolog(?:y|ies|ize[ds]?|ise[ds]?|etic)|"
+    r"evidentiary|limine|"
+    r"benevolen(?:t|ce|ces)|sympath(?:y|ies|etic)|condolences?|"
+    r"commiserat(?:e|es|ed|ing|ion|ions)"
+)
+
 # Topic patterns that are clearly immigration even without keyword hits
 IMMIGRATION_TOPIC_PATTERNS = [
     re.compile(r"\b(opt\b|stem\s+opt|cpt\b|curricular\s+practical)", re.I),
@@ -46,6 +58,18 @@ IMMIGRATION_TOPIC_PATTERNS = [
     re.compile(r"\b(adjustment\s+of\s+status|consular\s+processing)", re.I),
     re.compile(r"\b(i-140|i-485|i-765|i-129|i-539|i-20|i-94)\b", re.I),
     re.compile(r"\b(h[-\s]?1b|h[-\s]?4|l[-\s]?1|o[-\s]?1|eb[-\s]?[12]|f[-\s]?1)\b", re.I),
+    # An INA 212 inadmissibility waiver is often asked without visa, form,
+    # or case. The compound is enough, including a hyphen, double spaces,
+    # and a newline. "Waiver of inadmissibility" is a different phrase.
+    # Hearsay, malpractice, apology, and rules of evidence stay out. Bare
+    # waiver and bare inadmissibility are not this phrase.
+    re.compile(
+        rf"\A(?!.*\b(?:{_INADMISSIBILITY_WAIVER_GUARDS})\b)"
+        rf"(?!.*\brules?[-\s]+of[-\s]+evidence\b)"
+        rf"(?!.*\bunanticipated[-\s]+outcomes?\b)"
+        rf"(?=.*\binadmissibility[-\s]+waivers?\b)",
+        re.I | re.S,
+    ),
 ]
 
 # normalize hyphenated visa codes so "H-1B" matches keyword "h1b"
