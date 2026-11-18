@@ -38,6 +38,19 @@ IMMIGRATION_KEYWORDS = [
     "stem degree", "grace period",
 ]
 
+# Evidence rules and medical-apology statutes also talk about waivers.
+# Those stay out of scope, and so do bare "waiver", bare "212", a bare
+# "212(d)(3)(A)", and "waiver of 212(d)(3)(A)". A 212(d)(3) waiver without
+# subparagraph (A), and a 212(d)(3)(B) waiver, are different phrases.
+# 212(a), 212(e), 212(h), and 212(i) stay out too.
+_SECTION_212D3A_WAIVER_GUARDS = (
+    r"hearsays?|malpractices?|"
+    r"apolog(?:y|ies|ize[ds]?|ise[ds]?|etic)|"
+    r"evidentiary|limine|"
+    r"benevolen(?:t|ce|ces)|sympath(?:y|ies|etic)|condolences?|"
+    r"commiserat(?:e|es|ed|ing|ion|ions)"
+)
+
 # Topic patterns that are clearly immigration even without keyword hits
 IMMIGRATION_TOPIC_PATTERNS = [
     re.compile(r"\b(opt\b|stem\s+opt|cpt\b|curricular\s+practical)", re.I),
@@ -46,6 +59,20 @@ IMMIGRATION_TOPIC_PATTERNS = [
     re.compile(r"\b(adjustment\s+of\s+status|consular\s+processing)", re.I),
     re.compile(r"\b(i-140|i-485|i-765|i-129|i-539|i-20|i-94)\b", re.I),
     re.compile(r"\b(h[-\s]?1b|h[-\s]?4|l[-\s]?1|o[-\s]?1|eb[-\s]?[12]|f[-\s]?1)\b", re.I),
+    # An INA 212(d)(3)(A) waiver is often asked without visa, form, or case.
+    # The compound is enough, including a hyphen, double spaces, a newline,
+    # and spaces inside any pair of parentheses. "Waiver of 212(d)(3)(A)"
+    # is a different phrase. Hearsay, malpractice, apology, and rules of
+    # evidence stay out. Bare waiver, bare 212, bare 212(d)(3)(A), 212(d)(3)
+    # without (A), 212(d)(3)(B), 212(a), 212(e), 212(h), and 212(i) are not
+    # this phrase.
+    re.compile(
+        rf"\A(?!.*\b(?:{_SECTION_212D3A_WAIVER_GUARDS})\b)"
+        rf"(?!.*\brules?[-\s]+of[-\s]+evidence\b)"
+        rf"(?!.*\bunanticipated[-\s]+outcomes?\b)"
+        rf"(?=.*\b212\s*\(\s*d\s*\)\s*\(\s*3\s*\)\s*\(\s*a\s*\)[-\s]+waivers?\b)",
+        re.I | re.S,
+    ),
 ]
 
 # normalize hyphenated visa codes so "H-1B" matches keyword "h1b"
