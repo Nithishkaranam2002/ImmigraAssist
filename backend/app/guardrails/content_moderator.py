@@ -38,6 +38,19 @@ IMMIGRATION_KEYWORDS = [
     "stem degree", "grace period",
 ]
 
+# Evidence rules and medical-apology statutes also talk about exemptions.
+# Those stay out of scope. So do bare "exemption", "exemption of
+# 212(d)(3)(B)", and a 212(d)(3)(B) exemption where the citation comes
+# first. A 212(d)(3)(A) citation, a 212(d)(3) citation without (B), and
+# 212(a), 212(e), 212(h), and 212(i) are different phrases.
+_EXEMPTION_UNDER_212D3B_GUARDS = (
+    r"hearsays?|malpractices?|"
+    r"apolog(?:y|ies|ize[ds]?|ise[ds]?|etic)|"
+    r"evidentiary|limine|"
+    r"benevolen(?:t|ce|ces)|sympath(?:y|ies|etic)|condolences?|"
+    r"commiserat(?:e|es|ed|ing|ion|ions)"
+)
+
 # Topic patterns that are clearly immigration even without keyword hits
 IMMIGRATION_TOPIC_PATTERNS = [
     re.compile(r"\b(opt\b|stem\s+opt|cpt\b|curricular\s+practical)", re.I),
@@ -46,6 +59,21 @@ IMMIGRATION_TOPIC_PATTERNS = [
     re.compile(r"\b(adjustment\s+of\s+status|consular\s+processing)", re.I),
     re.compile(r"\b(i-140|i-485|i-765|i-129|i-539|i-20|i-94)\b", re.I),
     re.compile(r"\b(h[-\s]?1b|h[-\s]?4|l[-\s]?1|o[-\s]?1|eb[-\s]?[12]|f[-\s]?1)\b", re.I),
+    # An exemption under INA 212(d)(3)(B) is often asked without visa, form,
+    # or case. The compound is enough when exemption comes first, including
+    # a hyphen, double spaces, a newline, and spaces inside any pair of
+    # parentheses. "Exemption of 212(d)(3)(B)" and "212(d)(3)(B) exemption"
+    # are different phrases. Hearsay, malpractice, apology, and rules of
+    # evidence stay out. Bare exemption, 212(d)(3) without (B), 212(d)(3)(A),
+    # 212(a), 212(e), 212(h), and 212(i) are not this phrase.
+    re.compile(
+        rf"\A(?!.*\b(?:{_EXEMPTION_UNDER_212D3B_GUARDS})\b)"
+        rf"(?!.*\brules?[-\s]+of[-\s]+evidence\b)"
+        rf"(?!.*\bunanticipated[-\s]+outcomes?\b)"
+        rf"(?=.*\bexemptions?[-\s]+under[-\s]+"
+        rf"212\s*\(\s*d\s*\)\s*\(\s*3\s*\)\s*\(\s*b\s*\)(?!\s*\())",
+        re.I | re.S,
+    ),
 ]
 
 # normalize hyphenated visa codes so "H-1B" matches keyword "h1b"
